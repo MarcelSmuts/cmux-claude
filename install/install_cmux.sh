@@ -2,6 +2,7 @@
 # Installs the cmux app itself (a Ghostty-based terminal with vertical tabs built for
 # running AI coding agents side by side — https://www.cmux.dev/), via Homebrew cask.
 set -uo pipefail
+# shellcheck source=../lib/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 if [ -d "/Applications/cmux.app" ] || have cmux; then

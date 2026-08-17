@@ -2,6 +2,7 @@
 # sessions.sh — list the Claude tabs (named cmux workspaces), one per line, marking
 # the active tab. These are the tabs `tell` and `att` can reach.
 set -uo pipefail
+# shellcheck source=session-lib.sh
 . "$(dirname "$0")/session-lib.sh"
 sc_require_cmux || exit 1
 

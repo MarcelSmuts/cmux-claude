@@ -14,6 +14,7 @@
 # Usage:
 #   unspawn.sh <branch> [--keep-worktree] [--force]
 set -uo pipefail
+# shellcheck source=session-lib.sh
 . "$(dirname "$0")/session-lib.sh"
 
 TARGET=""; KEEP_WT=0; FORCE=0

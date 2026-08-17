@@ -56,7 +56,7 @@ if [ -z "$COMMON" ]; then
     exit 1
 fi
 MAIN_REPO="$(dirname "$COMMON")"
-cd "$MAIN_REPO"
+cd "$MAIN_REPO" || exit 1
 
 # Default the base to the repo's own default branch (main vs master vs ...), so this
 # works in any repo without needing --base. An explicit --base always wins.

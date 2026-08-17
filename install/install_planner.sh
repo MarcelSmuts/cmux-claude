@@ -2,6 +2,7 @@
 # Installs the PLANNER standing-role tab brief (plan-and-orchestrate, don't implement)
 # plus the session-orchestration scripts it drives (spawn/tell/sessions/att/unspawn).
 set -uo pipefail
+# shellcheck source=../lib/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 bash "$(dirname "${BASH_SOURCE[0]}")/install_orchestration.sh"

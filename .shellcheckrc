@@ -1,0 +1,6 @@
+# Follow `source`/`.` into sibling scripts (install/*.sh -> lib/common.sh,
+# claude/scripts/*.sh -> session-lib.sh). Needed for `shellcheck -x`.
+external-sources=true
+# Resolve `# shellcheck source=` paths relative to each script's own directory,
+# so a directive can name a sibling regardless of the CWD shellcheck runs from.
+source-path=SCRIPTDIR

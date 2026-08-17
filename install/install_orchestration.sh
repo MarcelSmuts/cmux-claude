@@ -3,6 +3,7 @@
 # and the role-tab injection hook that the Micromanage/Planner/Todo standing tabs rely on.
 # A dependency of those three, not usually picked on its own.
 set -uo pipefail
+# shellcheck source=../lib/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 have jq || { err "jq is required (brew install jq)."; exit 1; }

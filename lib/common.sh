@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # common.sh — shared helpers for the install/*.sh component scripts. Source it; don't run it.
+# shellcheck disable=SC2034  # the color palette below is consumed by the scripts that source this file
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

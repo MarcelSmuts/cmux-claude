@@ -1,5 +1,12 @@
 # cmux-claude
 
+[![CI](https://github.com/MarcelSmuts/cmux-claude/actions/workflows/ci.yml/badge.svg)](https://github.com/MarcelSmuts/cmux-claude/actions/workflows/ci.yml)
+![Bash](https://img.shields.io/badge/bash-%E2%89%A54-4EAA25?logo=gnubash&logoColor=white)
+![Zsh](https://img.shields.io/badge/zsh-supported-000000?logo=zsh&logoColor=white)
+![Python](https://img.shields.io/badge/python-3-3776AB?logo=python&logoColor=white)
+![macOS](https://img.shields.io/badge/platform-macOS-000000?logo=apple)
+[![License: MIT](https://img.shields.io/github/license/MarcelSmuts/cmux-claude)](LICENSE)
+
 A shareable setup for running [Claude Code](https://claude.com/claude-code) inside
 [cmux](https://www.cmux.dev/), a Ghostty-based terminal with vertical tabs built for
 running AI coding agents side by side. This repo packages:

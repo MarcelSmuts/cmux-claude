@@ -9,6 +9,7 @@
 # Usage:
 #   tell.sh <branch> "instruction" [--force] [--no-enter]
 set -uo pipefail
+# shellcheck source=session-lib.sh
 . "$(dirname "$0")/session-lib.sh"
 
 TARGET=""; MSG=""; FORCE=0; ENTER=1

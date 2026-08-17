@@ -24,6 +24,7 @@
 #
 # Env: CCW_LAUNCH_CMD (default: claude), SPAWN_READY_TIMEOUT (default: 30 seconds).
 set -uo pipefail
+# shellcheck source=session-lib.sh
 . "$(dirname "$0")/session-lib.sh"
 
 LAUNCH="${CCW_LAUNCH_CMD:-claude}"

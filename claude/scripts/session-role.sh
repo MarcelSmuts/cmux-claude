@@ -22,6 +22,8 @@ TITLE=$("$CMUX" --json list-workspaces --window "$WIN_REF" 2>/dev/null \
   | jq -r --arg ref "$WS_REF" '.workspaces[] | select(.ref == $ref) | .custom_title // empty')
 [ -n "$TITLE" ] || exit 0
 
+# TODO: extract this title->slug pipeline into a slugify() in lib/common.sh so it can
+# be unit-tested once (this hook would then need to source common.sh).
 SLUG=$(printf '%s' "$TITLE" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//')
 [ -n "$SLUG" ] || exit 0
 ROLE_FILE="$ROLES_DIR/$SLUG.md"

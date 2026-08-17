@@ -2,6 +2,7 @@
 # Installs the daily-recap add-on to the todo skill: full standup recap across
 # whichever sources the user picks, plus support for their own custom sources.
 set -uo pipefail
+# shellcheck source=../lib/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 have jq || { err "jq is required (brew install jq)."; exit 1; }
