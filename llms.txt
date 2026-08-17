@@ -1,0 +1,125 @@
+# cmux-claude — agent install & operate runbook
+
+> Executable notes for an AI agent (Claude Code, etc.) installing and driving this
+> workflow on a user's macOS machine. The human-facing overview is in README.md; this
+> file front-loads the non-obvious traps that otherwise cost an agent several
+> round-trips. Everything here is idempotent and safe to re-run. Substitute the user's
+> real paths for `$HOME`; never hardcode a password.
+
+## Preflight (check these first — each is a silent failure otherwise)
+
+- **macOS only.** cmux is macOS-only; `install.sh` exits on other platforms.
+- **bash 4+ required to run `install.sh`.** It uses `declare -A` (associative arrays),
+  which stock macOS bash 3.2 does not support — `./install.sh` dies with a parse error.
+  Fix: `brew install bash` and run it under that (`/opt/homebrew/bin/bash ./install.sh`),
+  or, if you can't install bash, source the helpers directly under bash and call the
+  per-component installers (they don't all need associative arrays).
+- **Run the installer under bash, not zsh.** `lib/common.sh` relies on `$BASH_SOURCE`
+  to resolve its own directory; sourced from zsh that's unset and every symlink it
+  creates silently dangles. Always `bash install.sh`, never `zsh`/`sh`.
+- **jq is required** (role-injection hook + settings.json merge); `node` only for
+  Micromanage's dashboard, `python3` only for Todo's.
+
+## Install
+
+```bash
+git clone https://github.com/MarcelSmuts/cmux-claude.git && cd cmux-claude
+bash install.sh --micromanage --planner --todo   # or bare `bash install.sh` for the checklist
+```
+
+Components symlink into `~/.claude/` (so a later `git pull` here updates them — the
+clone is load-bearing, don't delete it) and the shared `SessionStart` role hook is
+merged into `~/.claude/settings.json` (pre-existing file backed up to
+`settings.json.pre-cmux-claude.bak`).
+
+## Socket control — REQUIRED for an agent to drive cmux (spawn/tell/pin)
+
+Creating and pinning standing tabs from a script means talking to cmux's Unix control
+socket. An agent shell (e.g. Claude Code's Bash tool) runs **without**
+`CMUX_WORKSPACE_ID`, so cmux treats it as external and the default `cmuxOnly` mode
+rejects it. You must enable password mode AND give the app a stored password to match:
+
+```bash
+# 1. Back up, then set mode + password in the config file (NOT just the Settings UI).
+cp ~/.config/cmux/cmux.json ~/.config/cmux/cmux.json.bak.$(date +%Y%m%dT%H%M%S)
+# edit ~/.config/cmux/cmux.json -> automation: { socketControlMode: "password", socketPassword: "<pw>" }
+cmux reload-config          # app re-reads the file; no restart needed
+
+# 2. Expose the same value to any external/agent shell, then verify.
+export CMUX_SOCKET_PASSWORD="<pw>"
+cmux ping                   # expect: PONG
+```
+
+Why the config file and not only Settings → Automation: a password set through the UI
+can be **cleared by a cmux app update/restart**, after which password mode is still on
+but there is nothing to match, so *every* external CLI call fails with
+`Password mode is enabled but no socket password is configured in Settings.` Keeping
+`socketPassword` in `cmux.json` means `cmux reload-config` re-establishes it any time.
+CLI auth precedence: `--password` > `$CMUX_SOCKET_PASSWORD` > password saved in
+Settings. The workflow scripts (`spawn`/`tell`/`sessions`/`att`/`unspawn`) pick up
+`$CMUX_SOCKET_PASSWORD` from the environment automatically.
+
+## Standing tabs from the CLI
+
+`install.sh` offers to create the tabs interactively, but an agent can also do it
+directly — and must, when driving a non-interactive setup:
+
+```bash
+# A named tab IN PLACE (no throwaway worktree) — the right shape for a standing tab.
+# The tab title triggers the SessionStart role hook, which injects roles/<slug>.md.
+bash ~/.claude/scripts/spawn.sh PLANNER     --dir "$HOME/path/to/project"
+bash ~/.claude/scripts/spawn.sh TODO        --dir "$HOME"
+bash ~/.claude/scripts/spawn.sh MICROMANAGE --dir "$HOME"
+```
+
+Pin each tab (so it survives and stays in the bar):
+
+```bash
+# Resolve the workspace ref by title, then pin. You MUST pass --workspace context:
+# `--action pin --tab tab:N` on its own returns `not_found` (tab:N is scoped to a
+# workspace). Passing --workspace lets cmux resolve that workspace's tab.
+cmux workspace list --json | jq -r '.workspaces[] | "\(.ref)\t\(.custom_title)"'
+cmux tab-action --action pin --workspace workspace:2   # repeat per tab
+```
+
+Two things that will otherwise mislead you:
+
+- **`pinned` in `cmux workspace list` JSON is NOT the tab pin.** cmux has two pin
+  concepts: the horizontal-tab pin (`tab-action pin`, what standing tabs use) and the
+  sidebar workspace-**group** pin (`cmux workspace-group pin`, the only RPC-level
+  `*.pin` method). The `pinned` field reflects the group one, so it reads `false` even
+  for a correctly tab-pinned tab. To confirm a tab pin, rely on the `OK action=pin`
+  response, not that flag.
+- **The `micromanage` role is missing from the repo.** `install/install_micromanage.sh`
+  links `roles/micromanage.md`, but that file doesn't exist upstream, so the link
+  dangles and the MICROMANAGE tab loads no role. If the user wants that standing tab,
+  create a real `~/.claude/roles/micromanage.md` (not a symlink into the clone) — model
+  it on `roles/planner.md` / `roles/todo.md`.
+
+## Customizing roles without dirtying the clone
+
+`~/.claude/roles/*.md` are symlinks into this clone, so editing one in place makes the
+clone dirty and will conflict on the next `git pull`. To customize per-project, replace
+the symlink with a real copy, or add a per-tab-title `roles/<tab-title>.md` real file.
+
+## Troubleshooting (symptom → cause → fix)
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `install.sh`: `declare: -A: invalid option` / parse error | stock macOS bash 3.2 | run under bash 4+ (`brew install bash`) |
+| Every symlink dangles after install | installer sourced from zsh (`$BASH_SOURCE` unset) | re-run with `bash install.sh` |
+| `Password mode is enabled but no socket password is configured in Settings.` | password mode on, app has no stored password | set `automation.socketPassword` in `cmux.json` + `cmux reload-config` |
+| `Access denied` / `Authentication required` from an external shell | agent shell isn't authing | `export CMUX_SOCKET_PASSWORD=…` (matches `cmux.json`) |
+| `spawn`/`tell` say cmux is unreachable but the app is open | socket auth rejected, not a down app | same as the two rows above (this is what `sc_require_cmux` now distinguishes) |
+| `cmux tab-action --action pin --tab tab:N` → `not_found` | `tab:N` needs a workspace context | add `--workspace workspace:N` |
+| MICROMANAGE tab loads no role | `roles/micromanage.md` missing upstream | create a real `~/.claude/roles/micromanage.md` |
+
+## Key paths
+
+- cmux config: `~/.config/cmux/cmux.json` — `cmux settings path` prints all locations;
+  `cmux reload-config` reloads it (and Ghostty config) with no restart.
+- Installed pieces: `~/.claude/{scripts,roles,skills}/` (symlinks into this clone).
+- Role hook: `~/.claude/scripts/session-role.sh`, registered as `SessionStart` in
+  `~/.claude/settings.json`.
+- Orchestration scripts: `~/.claude/scripts/{spawn,tell,sessions,att,unspawn}.sh` — each
+  has a usage header; `sc_require_cmux` in `session-lib.sh` is the socket preflight.
