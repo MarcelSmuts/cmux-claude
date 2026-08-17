@@ -25,7 +25,8 @@ bash scripts/ui.sh          # --stop to shut it down, --url to print without ope
 A localhost page: a board of cards grouped by what each session wants from you (a click,
 an answer, a look, nothing, or reclaiming), carrying its pending ask, its `away_summary`,
 the evidence of its work (tests, typecheck, edits, pushes) and its PRs with CI and review
-state. Filters narrow to what wants you, what is ready to merge, and what has red CI.
+state. Filters narrow to what wants you, what is ready to merge, what has red CI, and what
+is ready to close (every PR it opened has landed, so the tab and worktree are reclaimable).
 It re-scans every few seconds on its own.
 
 Reading and replying happen in the tab, so the page is deliberately read-only bar one

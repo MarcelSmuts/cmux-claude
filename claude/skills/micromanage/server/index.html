@@ -407,13 +407,21 @@
       // filters of their own.
       const isReady = (p) => p.state === 'open' && !p.draft && p.review === 'approved' && p.ci && p.ci.gate === 'pass';
       const isRed = (p) => p.state === 'open' && p.ci && p.ci.gate === 'fail';
+      const isLanded = (p) => p.state === 'merged' || p.state === 'closed';
       const anyPr = (s, fn) => (s.prs || []).some(fn);
+
+      // A tab you can hand back: everything it opened has landed, and it isn't mid-turn —
+      // a session that merged its PR and then picked up new work is not done with the tab.
+      // A PR is the only evidence worth trusting here: idleness alone would nominate the
+      // standing tabs that are supposed to sit quiet, and those are the worst ones to close.
+      const readyToClose = (s) => s.state !== 'working' && (s.prs || []).length > 0 && s.prs.every(isLanded);
 
       // Several at once read as "or", so turning two on widens rather than narrows.
       const FILTERS = [
         { id: 'wants', label: 'wants me', hot: true, test: (s) => NEEDS_BUCKET.has(bucketOf(s)) },
         { id: 'ready', label: 'ready to merge', test: (s) => anyPr(s, isReady) },
         { id: 'red', label: 'red CI', hot: true, test: (s) => anyPr(s, isRed) },
+        { id: 'close', label: 'ready to close', test: readyToClose },
       ];
       // Oldest first where the age is the point; newest first where the news is.
       const OLDEST_FIRST = new Set(['stale', 'done']);
