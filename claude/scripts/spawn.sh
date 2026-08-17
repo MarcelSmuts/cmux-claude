@@ -11,7 +11,8 @@
 #   spawn.sh <branch> ["first instruction"] [--base <ref>] [--install]
 #            [--dir <path>] [--no-wait] [--attach] [--model <model>] [--effort <level>]
 #
-#   <branch>             tab name + new branch off origin/master
+#   <branch>             tab name + new branch off the repo's default branch,
+#                        fetched fresh from origin (override with --base)
 #   "first instruction"  optional; typed into Claude once it is ready
 #   --dir <path>         run in <path> as-is instead of creating a worktree
 #   --no-wait            don't wait for Claude's prompt before returning/sending
