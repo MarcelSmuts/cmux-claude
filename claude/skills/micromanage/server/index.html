@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>micromanage</title>
+    <style>
+      :root {
+        --bg: #0e1013;
+        --panel: #16191e;
+        --panel-2: #1c2027;
+        --line: #262b33;
+        --ink: #e6e9ef;
+        --ink-dim: #9aa3b2;
+        --ink-faint: #667085;
+        --accent: #7aa2f7;
+        --ok: #4ec9a5;
+        --warn: #e3b341;
+        --hot: #f7768e;
+        --idle: #a78bfa;
+        --radius: 12px;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f6f7f9;
+          --panel: #ffffff;
+          --panel-2: #f0f2f5;
+          --line: #e2e5ea;
+          --ink: #14171c;
+          --ink-dim: #4d5563;
+          --ink-faint: #7b8494;
+          --accent: #3b6fd4;
+          --ok: #12866a;
+          --warn: #a4700a;
+          --hot: #c8384f;
+          --idle: #6d4fd0;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 14px/1.5 var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 14px 20px;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--line);
+      }
+      h1 {
+        margin: 0;
+        font: 600 15px/1 var(--mono);
+        letter-spacing: 0.02em;
+      }
+      h1 .dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--ok);
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+      h1 .dot.scanning { background: var(--warn); animation: pulse 1s ease-in-out infinite; }
+      @keyframes pulse { 50% { opacity: 0.25; } }
+      .meta { font: 12px/1 var(--mono); color: var(--ink-faint); }
+      .meta .hot { color: var(--warn); font-weight: 600; }
+      .spacer { flex: 1; }
+      button, .btn {
+        font: 500 12px/1 var(--sans);
+        color: var(--ink-dim);
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 6px 10px;
+        cursor: pointer;
+        transition: 0.12s;
+      }
+      button:hover:not(:disabled) { color: var(--ink); border-color: var(--ink-faint); }
+      button:disabled { opacity: 0.35; cursor: not-allowed; }
+      button.danger { color: var(--hot); }
+      button.on { color: var(--ink); border-color: var(--accent); }
+      #picks { display: inline-flex; gap: 6px; }
+      #picks button { display: inline-flex; align-items: center; gap: 6px; }
+      #picks .ct {
+        font: 600 10px var(--mono);
+        min-width: 15px;
+        text-align: center;
+        border-radius: 20px;
+        padding: 1px 4px;
+        color: var(--ink-dim);
+        background: var(--bg);
+        border: 1px solid var(--line);
+      }
+      /* A count that means something you owe gets colour; a zero recedes rather than
+         inviting a click that would empty the board. */
+      #picks button.lit .ct { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+      #picks button.on .ct { color: var(--ink); }
+      #picks button.none { opacity: 0.45; }
+      input[type="search"] {
+        font: 12px var(--mono);
+        color: var(--ink);
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 6px 10px;
+        width: 170px;
+      }
+      /* One column per pile. They read left to right in the order you should work them,
+         and a pile with nothing in it is removed rather than left as an empty gutter. */
+      main {
+        padding: 16px 20px 80px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        align-items: start;
+        gap: 14px;
+      }
+      .sec { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+      .sec > h2 {
+        margin: 0;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex-wrap: wrap;
+        font: 600 11px var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink);
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--line);
+      }
+      .sec > h2 .n {
+        font-size: 10px;
+        color: var(--bg);
+        background: var(--pile, var(--ink-faint));
+        border-radius: 20px;
+        padding: 2px 7px;
+      }
+      .sec > h2 .why { font: 11px var(--mono); text-transform: none; letter-spacing: 0; color: var(--ink-faint); }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--st);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+      }
+      /* Order is recency, so the ones that want you have to win on looks alone. */
+      .card.needs {
+        background: linear-gradient(90deg, color-mix(in srgb, var(--st) 8%, var(--panel)), var(--panel) 40%);
+        border-left-width: 4px;
+      }
+      .card.urgent {
+        background: linear-gradient(90deg, color-mix(in srgb, var(--st) 20%, var(--panel)), var(--panel) 60%);
+        border-color: color-mix(in srgb, var(--st) 45%, var(--line));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--st) 30%, transparent), 0 4px 20px color-mix(in srgb, var(--st) 14%, transparent);
+      }
+      .card:not(.needs) { opacity: 0.62; }
+      .card:not(.needs):hover { opacity: 1; }
+      .need {
+        font: 600 10px var(--mono);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--st);
+        background: color-mix(in srgb, var(--st) 13%, transparent);
+        border-radius: 20px;
+        padding: 3px 9px;
+      }
+      .card.urgent .need { color: var(--bg); background: var(--st); }
+      .card.sel { border-color: var(--accent); border-left-color: var(--st); }
+      .card { position: relative; }
+      .corner { position: absolute; top: 8px; right: 9px; display: flex; gap: 5px; align-items: center; }
+      /* Both read the same weight: one takes the card off your list, the other takes the
+         whole tab away. Colour is what separates them. */
+      .corner button {
+        height: 24px;
+        padding: 0 8px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        font: 600 11px var(--mono);
+      }
+      button.park {
+        color: var(--idle);
+        background: color-mix(in srgb, var(--idle) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--idle) 28%, var(--line));
+      }
+      button.park:hover:not(:disabled) { color: var(--bg); background: var(--idle); border-color: transparent; }
+      button.kill {
+        width: 24px;
+        padding: 0;
+        font: 17px/1 var(--sans);
+        color: var(--hot);
+        background: color-mix(in srgb, var(--hot) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--hot) 28%, var(--line));
+      }
+      button.kill:hover:not(:disabled) { color: #fff; background: var(--hot); border-color: transparent; }
+      /* Keeps the header row clear of the corner controls sitting over it. */
+      .row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-right: 92px; }
+      .state { font-size: 15px; line-height: 1; }
+      .age { font: 600 12px var(--mono); color: var(--st); min-width: 42px; }
+      .where { font: 13px var(--mono); color: var(--ink); }
+      .where .branch { color: var(--ink-dim); }
+      .tab {
+        font: 11px var(--mono);
+        color: var(--ink-dim);
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 2px 9px;
+      }
+      .tab.ghost { color: var(--ink-faint); font-style: italic; }
+      .prs { display: flex; gap: 5px; flex-wrap: wrap; }
+      .pr {
+        display: inline-flex;
+        gap: 6px;
+        align-items: baseline;
+        font: 11px var(--mono);
+        text-decoration: none;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 2px 9px;
+        color: var(--ink-dim);
+      }
+      .pr:hover { border-color: var(--ink-faint); }
+      .pr .st { text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+      .pr.open .st { color: #3fb950; }
+      .pr.merged .st { color: #a371f7; }
+      .pr.closed .st { color: #f85149; }
+      .pr.draft .st { color: var(--ink-faint); }
+      .pr .ci.ok { color: var(--ok); }
+      .pr .ci.no { color: var(--hot); }
+      .pr .ci.run { color: var(--warn); }
+      .pr .rev.yes { color: var(--ok); }
+      .pr .rev.no { color: var(--hot); }
+      /* Green, approved and unmerged: the one card state that wants an action from you
+         rather than a read, so it is the only thing on the page that glows. */
+      .pr.ready {
+        color: var(--ink);
+        border-color: color-mix(in srgb, var(--ok) 55%, var(--line));
+        background: color-mix(in srgb, var(--ok) 12%, transparent);
+      }
+      .last {
+        margin-top: 6px;
+        color: var(--ink-dim);
+        font-size: 13px;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .last.sum { color: var(--ink); }
+      /* The ask itself, verbatim. This is the whole point of the card, so it gets the
+         only boxed treatment on it. */
+      .ask {
+        margin-top: 9px;
+        border: 1px solid color-mix(in srgb, var(--st) 35%, var(--line));
+        background: color-mix(in srgb, var(--st) 7%, transparent);
+        border-radius: 9px;
+        padding: 8px 10px;
+      }
+      .ask .kind {
+        font: 600 9.5px var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--st);
+      }
+      .ask .q { margin-top: 3px; font-size: 13px; color: var(--ink); }
+      .ask .cmd {
+        margin-top: 3px;
+        font: 11.5px/1.45 var(--mono);
+        color: var(--ink);
+        word-break: break-all;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .opts { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+      .opts span {
+        font: 11px var(--mono);
+        color: var(--ink-dim);
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 2px 8px;
+      }
+      /* Evidence, not decoration: every chip here is something you would otherwise have
+         opened the tab and scrolled to find. */
+      .chips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; align-items: center; }
+      .chip {
+        font: 11px var(--mono);
+        color: var(--ink-dim);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 2px 8px;
+        white-space: nowrap;
+      }
+      .chip.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+      .chip.bad { color: var(--hot); border-color: color-mix(in srgb, var(--hot) 45%, var(--line)); }
+      .chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+      .chip.mode { color: var(--idle); border-color: color-mix(in srgb, var(--idle) 40%, var(--line)); }
+      .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+      .panel {
+        margin-top: 10px;
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+      }
+      input:focus { outline: 1px solid var(--accent); }
+      .hint { font: 11px var(--mono); color: var(--ink-faint); }
+      .out { margin-top: 8px; font: 11.5px var(--mono); white-space: pre-wrap; color: var(--ink-faint); }
+      .out.bad { color: var(--hot); }
+      .confirm { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      label.chk { font: 11px var(--mono); color: var(--ink-dim); display: flex; align-items: center; gap: 5px; cursor: pointer; }
+      .empty { color: var(--ink-faint); font: 13px var(--mono); padding: 40px 0; text-align: center; }
+      #toast {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 9px 15px;
+        font: 12px var(--mono);
+        color: var(--ink);
+        box-shadow: 0 8px 30px #0006;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s;
+        z-index: 50;
+      }
+      #toast.show { opacity: 1; }
+      #toast.bad { color: var(--hot); }
+      footer { position: fixed; bottom: 0; left: 0; right: 0; padding: 7px 20px; background: var(--bg); border-top: 1px solid var(--line); font: 11px var(--mono); color: var(--ink-faint); }
+      kbd { font: 11px var(--mono); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--ink-dim); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1><span class="dot" id="dot"></span>micromanage</h1>
+      <span class="meta" id="counts">scanning…</span>
+      <span class="spacer"></span>
+      <input type="search" id="filter" placeholder="filter tabs or #pr…" />
+      <span id="picks"></span>
+      <button id="auto" class="on">auto</button>
+      <button id="refresh">refresh</button>
+    </header>
+    <main id="list"></main>
+    <div id="toast"></div>
+    <footer>
+      double-click a card to go to its tab · <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>enter</kbd> go to tab · <kbd>p</kbd> park · <kbd>r</kbd> refresh · <kbd>/</kbd> filter
+    </footer>
+
+    <script>
+      // Remembered so a reload or a bookmark of the bare URL still works, then dropped
+      // from the address bar so it isn't sitting in plain sight.
+      const TOKEN = new URLSearchParams(location.search).get('t') || localStorage.getItem('mm-token') || '';
+      localStorage.setItem('mm-token', TOKEN);
+      history.replaceState(null, '', location.pathname);
+
+      const STATES = {
+        'needs-permission': { emoji: '🔐', word: 'needs permission', rank: 0, color: 'var(--warn)' },
+        error: { emoji: '⚠️', word: 'error', rank: 1, color: 'var(--hot)' },
+        stalled: { emoji: '💤', word: 'stalled', rank: 2, color: 'var(--idle)' },
+        'waiting-for-you': { emoji: '⏳', word: 'waiting for you', rank: 3, color: 'var(--accent)' },
+        unknown: { emoji: '👀', word: 'unknown', rank: 4, color: 'var(--ink-faint)' },
+        working: { emoji: '✅', word: 'working', rank: 5, color: 'var(--ok)' },
+      };
+      // The piles, in the order you should work them. Sorted by what each one costs you:
+      // a click, then a decision, then a read, then nothing at all.
+      const BUCKETS = [
+        { id: 'approve', label: 'wants a click', why: 'a tool call it can’t make alone', color: 'var(--warn)' },
+        { id: 'decide', label: 'wants an answer', why: 'it asked you something', color: 'var(--accent)' },
+        { id: 'review', label: 'wants a look', why: 'finished and reported back', color: 'var(--ok)' },
+        { id: 'working', label: 'busy', why: 'nothing for you', color: 'var(--ink-faint)' },
+        { id: 'stale', label: 'parked', why: 'idle 12h+, or parked by you', color: 'var(--idle)' },
+        { id: 'done', label: 'landed', why: 'PR settled — tab is reclaimable', color: 'var(--idle)' },
+      ];
+      const BUCKET_AT = new Map(BUCKETS.map((b, i) => [b.id, i]));
+      // Which piles count as wanting something from you.
+      const NEEDS_BUCKET = new Set(['approve', 'decide', 'review']);
+
+      // Work already done that earns nothing until you merge it, and work that thinks it
+      // is done but isn't. Both hide in the parked pile, which is exactly why they need
+      // filters of their own.
+      const isReady = (p) => p.state === 'open' && !p.draft && p.review === 'approved' && p.ci && p.ci.gate === 'pass';
+      const isRed = (p) => p.state === 'open' && p.ci && p.ci.gate === 'fail';
+      const anyPr = (s, fn) => (s.prs || []).some(fn);
+
+      // Several at once read as "or", so turning two on widens rather than narrows.
+      const FILTERS = [
+        { id: 'wants', label: 'wants me', hot: true, test: (s) => NEEDS_BUCKET.has(bucketOf(s)) },
+        { id: 'ready', label: 'ready to merge', test: (s) => anyPr(s, isReady) },
+        { id: 'red', label: 'red CI', hot: true, test: (s) => anyPr(s, isRed) },
+      ];
+      // Oldest first where the age is the point; newest first where the news is.
+      const OLDEST_FIRST = new Set(['stale', 'done']);
+
+      // Most sessions sit at "waiting for you" most of the time, so the state word is only
+      // worth showing when it means something has actually gone wrong.
+      const URGENT = new Set(['needs-permission', 'error', 'stalled']);
+
+      const api = async (path, opts = {}) => {
+        const res = await fetch(path, {
+          ...opts,
+          headers: { 'x-micromanage-token': TOKEN, 'content-type': 'application/json', ...(opts.headers || {}) },
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+        return res.json();
+      };
+      const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
+
+      const el = (tag, cls, text) => {
+        const n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text != null) n.textContent = text;
+        return n;
+      };
+      const age = (s) => (s < 60 ? `${Math.max(0, Math.round(s))}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.floor(s / 3600)}h${String(Math.round((s % 3600) / 60)).padStart(2, '0')}`);
+
+      let toastTimer;
+      function toast(msg, bad) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'show' + (bad ? ' bad' : '');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => (t.className = ''), 3200);
+      }
+
+      // ── state ────────────────────────────────────────────────────────────────────
+      const ui = new Map(); // key → { panel, out, rev }
+      const cards = new Map(); // key → element
+      let data = { procs: 0, sessions: [], scannedAt: 0 };
+      let selected = null;
+      let auto = true;
+      let picks = new Set();
+      let filter = '';
+
+      // Identity is the transcript, never the tab: one cmux tab can hold two Claude
+      // sessions, and keying on the tab would collapse them into a single card.
+      const keyOf = (s) => s.file;
+      const stateOf = (s) => STATES[s.state] || STATES.unknown;
+      const liveIdle = (s) => s.idle + (data.scannedAt ? (Date.now() - data.scannedAt) / 1000 : 0);
+      const uiOf = (k) => {
+        if (!ui.has(k)) ui.set(k, { panel: null, out: null, rev: 0 });
+        return ui.get(k);
+      };
+      const mark = (state) => (state.rev = (state.rev || 0) + 1); // panel body changed
+
+      // Parking by hand, for the sessions you have read and are not going to act on. It is
+      // pinned to the turn you parked, so the moment that session says something new it
+      // comes back on its own — you can't lose one down here.
+      let parked = {};
+      try {
+        parked = JSON.parse(localStorage.getItem('mm-parked') || '{}');
+      } catch {}
+      const isParked = (s) => !!s.active && parked[s.file] === s.active;
+      const togglePark = (s) => {
+        if (isParked(s)) delete parked[s.file];
+        else parked[s.file] = s.active;
+        // Sessions come and go; keeping dead entries would grow this forever.
+        const alive = new Set(data.sessions.map((x) => x.file));
+        for (const f of Object.keys(parked)) if (!alive.has(f)) delete parked[f];
+        localStorage.setItem('mm-parked', JSON.stringify(parked));
+        render();
+      };
+
+      const bucketOf = (s) => (isParked(s) ? 'stale' : BUCKET_AT.has(s.bucket) ? s.bucket : 'review');
+
+      const picked = (s) => !picks.size || FILTERS.some((f) => picks.has(f.id) && f.test(s));
+
+      // PR numbers go in with their "#" so both "6195" and "#6195" find the same card.
+      const haystack = (s) => [s.tab, s.project, s.branch, ...(s.prs || []).map((p) => `#${p.number}`)].join(' ').toLowerCase();
+
+      function visible() {
+        return data.sessions
+          .filter((s) => picked(s) && (!filter || haystack(s).includes(filter)))
+          .sort((a, b) => {
+            const d = BUCKET_AT.get(bucketOf(a)) - BUCKET_AT.get(bucketOf(b));
+            if (d) return d;
+            return OLDEST_FIRST.has(bucketOf(a)) ? b.idle - a.idle : a.idle - b.idle;
+          });
+      }
+
+      // ── rendering ────────────────────────────────────────────────────────────────
+      // Each filter carries its own count, so the header doubles as the fleet summary and
+      // a zero count is its own answer: nothing is red, so there is nothing to click.
+      const pickBtns = new Map();
+
+      function paintPicks() {
+        const host = document.getElementById('picks');
+        for (const f of FILTERS) {
+          let b = pickBtns.get(f.id);
+          if (!b) {
+            b = el('button');
+            b.append(el('span', 'lbl', f.label), el('span', 'ct', '0'));
+            b.onclick = () => {
+              picks.has(f.id) ? picks.delete(f.id) : picks.add(f.id);
+              render();
+            };
+            pickBtns.set(f.id, b);
+            host.append(b);
+          }
+          const n = data.sessions.filter(f.test).length;
+          b.querySelector('.ct').textContent = n;
+          b.classList.toggle('on', picks.has(f.id));
+          b.classList.toggle('lit', !!n && !!f.hot);
+          b.classList.toggle('none', !n);
+          b.title = n ? `${n} of ${data.sessions.length} sessions` : 'nothing matches this right now';
+        }
+      }
+
+      const sections = new Map(); // bucket id → { host, body }
+
+      function sectionFor(b) {
+        let sec = sections.get(b.id);
+        if (!sec) {
+          const host = el('section', 'sec');
+          host.style.setProperty('--pile', b.color);
+          const h = el('h2');
+          h.append(el('span', 'n', '0'), el('span', '', b.label), el('span', 'why', b.why));
+          host.append(h);
+          sec = { host, head: h.querySelector('.n') };
+          sections.set(b.id, sec);
+        }
+        return sec;
+      }
+
+      function render() {
+        const board = document.getElementById('list');
+        const rows = visible();
+        const seen = new Set();
+        const grouped = new Map(BUCKETS.map((b) => [b.id, []]));
+        for (const s of rows) grouped.get(bucketOf(s)).push(s);
+
+        let slot = 0;
+        for (const b of BUCKETS) {
+          const group = grouped.get(b.id);
+          const sec = sectionFor(b);
+          if (!group.length) {
+            sec.host.remove();
+            continue;
+          }
+          sec.head.textContent = group.length;
+          if (board.children[slot] !== sec.host) board.insertBefore(sec.host, board.children[slot] || null);
+          slot++;
+
+          group.forEach((s, i) => {
+            const k = keyOf(s);
+            seen.add(k);
+            let card = cards.get(k);
+            if (!card) {
+              card = buildCard(k);
+              cards.set(k, card);
+            }
+            paintCard(card, s);
+            // Move only when the order actually changed: re-inserting a node blurs
+            // whatever is focused inside it, and the ages tick every second.
+            const at = sec.host.children[i + 1]; // +1 for the heading
+            if (at !== card) sec.host.insertBefore(card, at || null);
+          });
+        }
+
+        for (const [k, card] of cards) {
+          if (!seen.has(k)) {
+            card.remove();
+            cards.delete(k);
+          }
+        }
+
+        let empty = document.getElementById('empty');
+        if (!rows.length) {
+          if (!empty) {
+            empty = el('div', 'empty', 'nothing matches');
+            empty.id = 'empty';
+            board.appendChild(empty);
+          }
+          empty.textContent = data.error ? `scan failed: ${data.error}` : data.sessions.length ? 'nothing matches this filter' : 'no live Claude sessions';
+        } else if (empty) empty.remove();
+
+        paintPicks();
+        const extra = data.procs - data.sessions.length;
+        document.getElementById('counts').replaceChildren(
+          el('span', '', `${data.sessions.length} session${data.sessions.length === 1 ? '' : 's'}`),
+          el(
+            'span',
+            '',
+            (extra > 0 ? ` · ${extra} process${extra === 1 ? '' : 'es'} with no recent activity` : '') +
+              (data.scannedAt ? ` · scanned ${age((Date.now() - data.scannedAt) / 1000)} ago` : ''),
+          ),
+        );
+        document.getElementById('dot').className = 'dot' + (data.scanning ? ' scanning' : '');
+      }
+
+      function buildCard(k) {
+        const card = el('div', 'card');
+        card.dataset.key = k;
+        card.innerHTML = `
+          <div class="row">
+            <span class="state"></span><span class="age"></span>
+            <span class="where"></span><span class="tab"></span><span class="prs"></span><span class="need"></span>
+          </div>
+          <div class="last"></div>
+          <div class="ask" hidden></div>
+          <div class="chips"></div>
+          <div class="corner">
+            <button data-act="park" class="park"></button>
+            <button data-act="close" class="kill" title="unspawn: close the tab and reclaim its worktree">×</button>
+          </div>
+          <div class="panel" hidden></div>`;
+        card.addEventListener('click', (e) => {
+          selected = k;
+          const act = e.target.dataset && e.target.dataset.act;
+          if (act) doAction(k, act);
+          else paintAll();
+        });
+        // Reading happens in the tab, so double-click anywhere on the card goes there. The
+        // confirm panel is exempt, since a stray double-click there would be a misfire.
+        card.addEventListener('dblclick', (e) => {
+          if (e.target.closest('.panel') || ['BUTTON', 'INPUT', 'LABEL'].includes(e.target.tagName)) return;
+          const s = data.sessions.find((x) => keyOf(x) === k);
+          if (s && s.ws) doAction(k, 'focus');
+        });
+        return card;
+      }
+
+      function paintCard(card, s) {
+        const st = stateOf(s);
+        const k = keyOf(s);
+        const b = BUCKETS[BUCKET_AT.get(bucketOf(s))];
+        // Colour by pile, not by state, so a card always matches the column it sits in.
+        const needs = NEEDS_BUCKET.has(b.id);
+        card.style.setProperty('--st', b.color);
+        card.classList.toggle('sel', selected === k);
+        card.classList.toggle('needs', needs);
+        card.classList.toggle('urgent', b.id === 'approve' || b.id === 'decide' || s.state === 'error');
+        const need = card.querySelector('.need');
+        need.textContent = st.word;
+        need.hidden = !URGENT.has(s.state);
+        card.querySelector('.state').textContent = st.emoji;
+        card.querySelector('.state').title = st.word;
+        card.querySelector('.age').textContent = age(liveIdle(s));
+        const where = card.querySelector('.where');
+        where.textContent = s.project;
+        if (s.branch && s.branch !== '?' && s.branch !== s.project) {
+          const b = el('span', 'branch', ` / ${s.branch}`);
+          where.appendChild(b);
+        }
+        const tab = card.querySelector('.tab');
+        tab.textContent = s.ws ? s.tab : `${s.tab} · not a cmux tab`;
+        tab.className = 'tab' + (s.ws ? '' : ' ghost');
+        tab.hidden = !!s.ws && s.tab === s.branch; // a tab named after its branch says nothing new
+        paintPrs(card.querySelector('.prs'), s.prs || []);
+        paintAsk(card.querySelector('.ask'), s);
+        paintChips(card.querySelector('.chips'), s);
+
+        // A busy session's own words are live, so they beat the summary it wrote when it
+        // last stopped. An idle one is the other way round.
+        const work = s.work || {};
+        const summary = s.state !== 'working' && work.summary;
+        const body = card.querySelector('.last');
+        body.textContent = summary || s.last || '—';
+        body.className = 'last' + (summary ? ' sum' : '');
+        // unspawn addresses the tab by name, so a session that isn't in one can't be closed
+        // from here at all.
+        const kill = card.querySelector('[data-act="close"]');
+        kill.disabled = !s.ws;
+        kill.title = kill.disabled ? 'no addressable cmux tab — close it yourself' : `unspawn ${s.ws}: close the tab and reclaim its worktree`;
+
+        const byhand = isParked(s);
+        card.classList.toggle('byhand', byhand);
+        const park = card.querySelector('[data-act="park"]');
+        park.textContent = byhand ? 'unpark' : 'park';
+        // Without a turn timestamp there is nothing to un-park against, and a park that
+        // never lifts would quietly hide the session for good.
+        park.disabled = !s.active;
+        park.title = park.disabled
+          ? 'no turn timestamp to un-park against'
+          : byhand
+            ? 'put it back where it belongs'
+            : 'park it until this session does something new';
+        paintPanel(card, s);
+      }
+
+      // ── the three new rows on a card ─────────────────────────────────────────────
+      const CI_WORD = { pass: ['ci ✔', 'ok'], fail: ['ci ✕', 'no'], running: ['ci …', 'run'] };
+
+      function paintPrs(host, prs) {
+        host.replaceChildren();
+        for (const p of prs) {
+          const ci = p.ci || {};
+          const ready = isReady(p);
+          const a = el('a', `pr ${p.state}${ready ? ' ready' : ''}`);
+          a.href = p.url || '#';
+          a.target = '_blank';
+          a.rel = 'noreferrer';
+          a.title = [
+            p.title,
+            p.repo,
+            ci.total ? `${ci.passed} passed, ${ci.failed} failed, ${ci.running} running` : '',
+            // Settled PRs are only re-checked every half hour, so say how old this is.
+            p.checkedAt ? `checked ${age((Date.now() - p.checkedAt) / 1000)} ago` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          a.append(`#${p.number}`, el('span', 'st', p.draft ? 'draft' : p.state));
+          const word = CI_WORD[ci.gate];
+          if (word) a.append(el('span', `ci ${word[1]}`, word[0]));
+          // Only the decisive review states are worth the space: "review required" is the
+          // default every open PR sits in and says nothing.
+          if (p.review === 'approved') a.append(el('span', 'rev yes', ready ? 'merge it' : 'approved'));
+          else if (p.review === 'changes_requested') a.append(el('span', 'rev no', 'changes'));
+          if (p.conflicts) a.append(el('span', 'rev no', 'conflicts'));
+          host.append(a);
+        }
+      }
+
+      function paintAsk(host, s) {
+        const now = s.now || {};
+        host.replaceChildren();
+        if (now.kind === 'question') {
+          host.hidden = false;
+          host.append(el('div', 'kind', 'asked you'));
+          for (const q of now.questions || []) {
+            host.append(el('div', 'q', q.question));
+            if (q.options && q.options.length) {
+              const opts = el('div', 'opts');
+              for (const o of q.options) opts.append(el('span', '', o));
+              host.append(opts);
+            }
+          }
+          return;
+        }
+        if (now.kind === 'tool') {
+          host.hidden = false;
+          const waiting = s.state !== 'working';
+          host.append(el('div', 'kind', waiting ? `waiting to run · ${now.tool}` : `running · ${now.tool}`));
+          host.append(el('div', 'cmd', now.detail || ''));
+          return;
+        }
+        host.hidden = true;
+      }
+
+      function paintChips(host, s) {
+        const w = s.work || {};
+        const bits = [];
+        const add = (cls, text, title) => bits.push([cls, text, title]);
+
+        // A local run from before the last push is a verdict on code CI has since judged
+        // for itself, and CI ran it on a clean box. Showing both invites "3 failing" to sit
+        // next to a green tick, so the older witness stands down.
+        const judged = (s.prs || []).some((p) => p.ci && p.ci.gate);
+        const pushedAt = w.pushedAt ? new Date(w.pushedAt).getTime() : 0;
+        const live = (r) => (r && !(judged && pushedAt && r.at && new Date(r.at).getTime() < pushedAt) ? r : null);
+        const tests = live(w.tests);
+        const types = live(w.types);
+
+        if (tests) {
+          const t = tests;
+          const when = t.at ? ` · ${age((Date.now() - new Date(t.at)) / 1000)} ago` : '';
+          if (!t.counted) add(t.ok ? 'good' : 'bad', t.ok ? 'tests ran' : 'tests failed', `no counts in the output${when}`);
+          else if (t.ok) add('good', `${t.passing} pass`, `last local run${when}`);
+          else add('bad', `${t.failing} failing`, `last local run${when}`);
+        }
+        if (types) add(types.ok ? 'good' : 'bad', types.ok ? 'tsc' : `tsc ${types.errors}`, 'last typecheck');
+        if (w.edits) add('', `${w.edits} edit${w.edits === 1 ? '' : 's'} · ${w.files} file${w.files === 1 ? '' : 's'}`, 'from its own Edit and Write calls');
+        if (w.pushes) add('', `↑${w.pushes}`, `${w.pushes} push${w.pushes === 1 ? '' : 'es'}`);
+        else if (w.commits) add('', `${w.commits} commit${w.commits === 1 ? '' : 's'}`, 'committed but never pushed');
+        if (w.errors > 4) add('warn', `${w.errors} tool errors`, 'failed tool calls over the session');
+        // auto is the norm here, so it is only worth a chip when it is something else.
+        if (w.permissionMode && w.permissionMode !== 'auto') add('mode', w.permissionMode, 'permission mode');
+        if (w.partial) add('', '…', 'transcript too long to count from the start');
+
+        host.replaceChildren();
+        for (const [cls, text, title] of bits) {
+          const c = el('span', `chip ${cls}`.trim(), text);
+          if (title) c.title = title;
+          host.append(c);
+        }
+        host.hidden = !bits.length;
+      }
+
+      function paintPanel(card, s) {
+        const k = keyOf(s);
+        const state = uiOf(k);
+        const panel = card.querySelector('.panel');
+        if (!state.panel) {
+          panel.hidden = true;
+          panel.replaceChildren();
+          panel.dataset.kind = '';
+          return;
+        }
+        panel.hidden = false;
+        const rev = String(state.rev || 0);
+        if (panel.dataset.kind === state.panel) {
+          // Only touch the body when its content actually changed — otherwise the
+          // per-second tick would re-scroll the transcript and drop text selections.
+          if (panel.dataset.rev !== rev) {
+            refreshPanelBody(panel, s, state);
+            panel.dataset.rev = rev;
+          }
+          return;
+        }
+        panel.dataset.kind = state.panel;
+        panel.dataset.rev = rev;
+        panel.replaceChildren();
+
+        if (state.panel === 'close') {
+          const bar = el('div', 'confirm');
+          bar.append(el('span', 'hint', `close tab “${s.ws}”, remove its worktree and branch?`));
+          const mk = (text, prop) => {
+            const l = el('label', 'chk');
+            const cb = el('input');
+            cb.type = 'checkbox';
+            cb.checked = !!state[prop];
+            cb.onchange = () => (state[prop] = cb.checked);
+            l.append(cb, document.createTextNode(text));
+            return l;
+          };
+          bar.append(mk('keep worktree', 'keepWorktree'), mk('force (discard changes)', 'forceClose'));
+          const go = el('button', 'danger', 'close it');
+          go.onclick = async () => {
+            go.disabled = true;
+            const out = await post('/api/close', { ws: s.ws, cwd: s.cwd, keepWorktree: state.keepWorktree, force: state.forceClose });
+            state.out = (out.stdout + out.stderr).trim();
+            mark(state);
+            toast(out.ok ? `closed ${s.ws}` : `close failed — see the card`, !out.ok);
+            paintPanel(card, s);
+            poll(true);
+          };
+          const cancel = el('button', '', 'cancel');
+          cancel.onclick = () => closePanel(k);
+          bar.append(go, cancel);
+          panel.append(bar, el('div', 'out'));
+          panel.querySelector('div.out').textContent = state.out || '';
+        }
+      }
+
+      function refreshPanelBody(panel, s, state) {
+        const out = panel.querySelector('div.out');
+        if (out) out.textContent = state.out || '';
+      }
+
+      // ── actions ──────────────────────────────────────────────────────────────────
+      function closePanel(k) {
+        uiOf(k).panel = null;
+        paintAll();
+      }
+
+      async function doAction(k, act) {
+        const s = data.sessions.find((x) => keyOf(x) === k);
+        if (!s) return;
+        const state = uiOf(k);
+        if (act === 'focus') {
+          const out = await post('/api/focus', { ws: s.ws });
+          toast(out.ok ? `focused ${s.ws}` : (out.stderr || 'could not focus').trim(), !out.ok);
+          return;
+        }
+        if (act === 'park') return togglePark(s);
+        if (act === 'close') {
+          state.panel = state.panel === act ? null : act;
+          state.out = null;
+          paintAll();
+        }
+      }
+
+      function paintAll() {
+        for (const [k, card] of cards) {
+          const s = data.sessions.find((x) => keyOf(x) === k);
+          if (s) paintCard(card, s);
+        }
+      }
+
+      // ── polling ──────────────────────────────────────────────────────────────────
+      let polling = false;
+      async function poll(force) {
+        if (polling) return;
+        polling = true;
+        try {
+          data = await api(`/api/sessions${force ? '?force=1' : ''}`);
+          if (data.error) toast(data.error, true);
+        } catch (e) {
+          toast(String(e.message || e), true);
+        } finally {
+          polling = false;
+          render();
+          // A scan takes a few seconds and runs behind the response, so come back for
+          // its result rather than making the user wait for the next tick.
+          if (data.scanning) setTimeout(() => poll(), 1200);
+        }
+      }
+
+      setInterval(() => auto && poll(), 5000);
+      setInterval(render, 1000); // keep the ages honest between scans
+      poll();
+
+      // ── chrome ───────────────────────────────────────────────────────────────────
+      document.getElementById('refresh').onclick = () => poll(true);
+      const autoBtn = document.getElementById('auto');
+      autoBtn.onclick = () => {
+        auto = !auto;
+        autoBtn.classList.toggle('on', auto);
+      };
+      const filterBox = document.getElementById('filter');
+      filterBox.addEventListener('input', () => {
+        filter = filterBox.value.trim().toLowerCase();
+        render();
+      });
+      filterBox.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          filterBox.value = '';
+          filter = '';
+          filterBox.blur();
+          render();
+        }
+        e.stopPropagation();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        const rows = visible();
+        const i = rows.findIndex((s) => keyOf(s) === selected);
+        const pick = (n) => {
+          selected = rows.length ? keyOf(rows[Math.max(0, Math.min(rows.length - 1, n))]) : null;
+          paintAll();
+          cards.get(selected)?.scrollIntoView({ block: 'nearest' });
+        };
+        if (e.key === 'j') pick(i + 1);
+        else if (e.key === 'k') pick(i < 0 ? 0 : i - 1);
+        else if (e.key === 'r') poll(true);
+        else if (e.key === '/') {
+          e.preventDefault();
+          filterBox.focus();
+        } else if (selected && (e.key === 'Enter' || e.key === 'f')) {
+          doAction(selected, 'focus');
+        } else if (selected && e.key === 'p') {
+          doAction(selected, 'park');
+        }
+      });
+    </script>
+  </body>
+</html>
