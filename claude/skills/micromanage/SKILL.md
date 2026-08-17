@@ -29,7 +29,10 @@ state. Filters narrow to what wants you, what is ready to merge, and what has re
 It re-scans every few seconds on its own.
 
 Reading and replying happen in the tab, so the page is deliberately read-only bar one
-action: double-click a card to go to its tab, and **unspawn…** to close a finished one.
+action: double-click a card to go to its tab, and **×** to unspawn a finished one. Each card
+also carries **↻** and **↓**: PR state rides slow sweeps (a couple of minutes while checks
+move, half an hour once they settle), so ↻ asks GitHub about that card's PRs right now, and
+↓ parks the card until its session does something new (↑ to bring it back).
 
 Run this instead of the table when the user asks to *open* micromanage or wants a UI. It starts the server on first use
 and re-opens the same one after that, so it's safe to run repeatedly. The page is

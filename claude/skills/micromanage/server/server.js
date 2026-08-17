@@ -183,6 +183,24 @@ const ghGive = () => {
   else ghSlots++;
 };
 
+// One lookup per PR at a time: two polls arriving together share the in-flight promise
+// instead of spending two GraphQL queries to be told the same thing.
+function lookup(link) {
+  const key = prKey(link);
+  const running = prInFlight.get(key);
+  if (running) return running;
+  const job = prDetail(link)
+    .then((d) => {
+      // A failed lookup keeps the old copy rather than blanking the card, but still takes
+      // a fresh receipt so a broken PR isn't retried on every poll until the next sweep.
+      prCache.set(key, { at: Date.now(), detail: d || (prCache.get(key) || {}).detail || null });
+    })
+    .catch(() => {})
+    .finally(() => prInFlight.delete(key));
+  prInFlight.set(key, job);
+  return job;
+}
+
 function refreshPrs(links) {
   const now = Date.now();
   const sweepLive = now - sweptLive >= PR_TTL_LIVE;
@@ -194,31 +212,36 @@ function refreshPrs(links) {
     const key = prKey(link);
     if (seen.has(key)) continue;
     seen.add(key);
-    if (prInFlight.has(key)) {
-      jobs.push(prInFlight.get(key));
-      continue;
+    if (!prInFlight.has(key)) {
+      const held = prCache.get(key);
+      // The owning session pushed since we last looked, so CI is starting over whatever the
+      // cached copy says. Without this a settled-green PR could sit half an hour out of date
+      // while its checks were actually re-running.
+      const pushedSince = held && link.pushedAt && new Date(link.pushedAt).getTime() > held.at;
+      if (held && !pushedSince && !(isLive(held) ? sweepLive : sweepSettled)) continue;
     }
-    const held = prCache.get(key);
-    // The owning session pushed since we last looked, so CI is starting over whatever the
-    // cached copy says. Without this a settled-green PR could sit half an hour out of date
-    // while its checks were actually re-running.
-    const pushedSince = held && link.pushedAt && new Date(link.pushedAt).getTime() > held.at;
-    if (held && !pushedSince && !(isLive(held) ? sweepLive : sweepSettled)) continue;
-    const job = prDetail(link)
-      .then((d) => {
-        // A failed lookup keeps the old copy rather than blanking the card, but still takes
-        // a fresh receipt so a broken PR isn't retried on every poll until the next sweep.
-        prCache.set(key, { at: Date.now(), detail: d || (prCache.get(key) || {}).detail || null });
-      })
-      .catch(() => {})
-      .finally(() => prInFlight.delete(key));
-    prInFlight.set(key, job);
-    jobs.push(job);
+    jobs.push(lookup(link));
   }
   // Stamped even when a sweep matched nothing: it ran, and found nothing to do.
   if (sweepLive) sweptLive = now;
   if (sweepSettled) sweptSettled = now;
   return Promise.all(jobs);
+}
+
+// The card's ↻. Both sweeps are deliberately slow, so this is how you say "ask GitHub now"
+// for one card: no receipt is consulted, and the answer lands before the reply so the poll
+// that follows already has it.
+function refreshPrsNow(links) {
+  const seen = new Set();
+  const jobs = [];
+  for (const link of links) {
+    if (!link || !link.number || !link.repo) continue;
+    const key = prKey(link);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    jobs.push(lookup(link));
+  }
+  return Promise.all(jobs).then(() => seen.size);
 }
 
 function prFor(link) {
@@ -341,6 +364,17 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST') {
       const body = await readBody(req);
+
+      // Which PRs to look up is read back out of the scan rather than taken from the page,
+      // so a request can only ever refresh a PR some session actually opened.
+      if (url.pathname === '/api/pr-refresh') {
+        const s = (cache.data.sessions || []).find((x) => x.file === String(body.file || ''));
+        if (!s) return json(res, 404, { error: 'unknown session' });
+        const links = (insight.read(s).work || {}).prs || [];
+        if (!links.length) return json(res, 200, { ok: true, refreshed: 0 });
+        return json(res, 200, { ok: true, refreshed: await refreshPrsNow(links) });
+      }
+
       const ws = String(body.ws || '').trim();
       if (!ws) return json(res, 400, { error: 'no tab' });
 

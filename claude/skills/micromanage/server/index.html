@@ -181,25 +181,35 @@
       .card.sel { border-color: var(--accent); border-left-color: var(--st); }
       .card { position: relative; }
       .corner { position: absolute; top: 8px; right: 9px; display: flex; gap: 5px; align-items: center; }
-      /* Both read the same weight: one takes the card off your list, the other takes the
-         whole tab away. Colour is what separates them. */
+      /* They read the same weight: one asks GitHub again, one takes the card off your list,
+         one takes the whole tab away. Colour is what separates them. */
       .corner button {
+        width: 24px;
         height: 24px;
-        padding: 0 8px;
+        padding: 0;
         display: grid;
         place-items: center;
         border-radius: 7px;
-        font: 600 11px var(--mono);
+        font: 14px/1 var(--sans);
       }
+      button.sync {
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+      }
+      button.sync:hover:not(:disabled) { color: var(--bg); background: var(--accent); border-color: transparent; }
+      button.sync.busy { animation: spin 0.9s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
       button.park {
         color: var(--idle);
         background: color-mix(in srgb, var(--idle) 10%, transparent);
         border: 1px solid color-mix(in srgb, var(--idle) 28%, var(--line));
       }
       button.park:hover:not(:disabled) { color: var(--bg); background: var(--idle); border-color: transparent; }
+      /* Parked cards keep the button lit, so the one control that is currently doing
+         something to the card doesn't look identical to the two that aren't. */
+      .card.byhand button.park { color: var(--bg); background: var(--idle); border-color: transparent; }
       button.kill {
-        width: 24px;
-        padding: 0;
         font: 17px/1 var(--sans);
         color: var(--hot);
         background: color-mix(in srgb, var(--hot) 10%, transparent);
@@ -207,7 +217,7 @@
       }
       button.kill:hover:not(:disabled) { color: #fff; background: var(--hot); border-color: transparent; }
       /* Keeps the header row clear of the corner controls sitting over it. */
-      .row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-right: 92px; }
+      .row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-right: 90px; }
       .state { font-size: 15px; line-height: 1; }
       .age { font: 600 12px var(--mono); color: var(--st); min-width: 42px; }
       .where { font: 13px var(--mono); color: var(--ink); }
@@ -360,7 +370,7 @@
     <main id="list"></main>
     <div id="toast"></div>
     <footer>
-      double-click a card to go to its tab · <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>enter</kbd> go to tab · <kbd>p</kbd> park · <kbd>r</kbd> refresh · <kbd>/</kbd> filter
+      double-click a card to go to its tab · <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>enter</kbd> go to tab · <kbd>p</kbd> park · <kbd>g</kbd> re-check its PRs · <kbd>r</kbd> refresh · <kbd>/</kbd> filter
     </footer>
 
     <script>
@@ -616,6 +626,7 @@
           <div class="ask" hidden></div>
           <div class="chips"></div>
           <div class="corner">
+            <button data-act="sync" class="sync">↻</button>
             <button data-act="park" class="park"></button>
             <button data-act="close" class="kill" title="unspawn: close the tab and reclaim its worktree">×</button>
           </div>
@@ -679,18 +690,32 @@
         kill.disabled = !s.ws;
         kill.title = kill.disabled ? 'no addressable cmux tab — close it yourself' : `unspawn ${s.ws}: close the tab and reclaim its worktree`;
 
+        // Both PR sweeps are slow on purpose, so this is the way to ask GitHub right now —
+        // for the card you are looking at, not the whole fleet.
+        const sync = card.querySelector('[data-act="sync"]');
+        const prs = s.prs || [];
+        const checked = Math.max(0, ...prs.map((p) => p.checkedAt || 0));
+        const syncing = !!uiOf(k).syncing;
+        sync.disabled = !prs.length || syncing;
+        sync.classList.toggle('busy', syncing);
+        sync.title = !prs.length
+          ? 'no PR on this session to check'
+          : `re-check GitHub (g): ${prs.map((p) => `#${p.number}`).join(', ')}` + (checked ? ` · last checked ${age((Date.now() - checked) / 1000)} ago` : '');
+
         const byhand = isParked(s);
         card.classList.toggle('byhand', byhand);
         const park = card.querySelector('[data-act="park"]');
-        park.textContent = byhand ? 'unpark' : 'park';
+        // Down into the parked pile, up out of it: the arrow says where the card goes, not
+        // what happens to the session, which "pause" or "sleep" would both imply.
+        park.textContent = byhand ? '↑' : '↓';
         // Without a turn timestamp there is nothing to un-park against, and a park that
         // never lifts would quietly hide the session for good.
         park.disabled = !s.active;
         park.title = park.disabled
           ? 'no turn timestamp to un-park against'
           : byhand
-            ? 'put it back where it belongs'
-            : 'park it until this session does something new';
+            ? 'unpark (p): put it back where it belongs'
+            : 'park (p): hide it until this session does something new';
         paintPanel(card, s);
       }
 
@@ -868,6 +893,22 @@
           toast(out.ok ? `focused ${s.ws}` : (out.stderr || 'could not focus').trim(), !out.ok);
           return;
         }
+        if (act === 'sync') {
+          if (!(s.prs || []).length || state.syncing) return;
+          state.syncing = true;
+          paintAll();
+          try {
+            const out = await post('/api/pr-refresh', { file: k });
+            toast(`re-checked ${out.refreshed} PR${out.refreshed === 1 ? '' : 's'} on ${s.tab}`);
+          } catch (e) {
+            toast(String(e.message || e), true);
+          } finally {
+            state.syncing = false;
+          }
+          // The lookup already landed in the server's cache, so a plain poll picks it up —
+          // no reason to make it re-read every transcript as well.
+          return poll();
+        }
         if (act === 'park') return togglePark(s);
         if (act === 'close') {
           state.panel = state.panel === act ? null : act;
@@ -947,6 +988,8 @@
           doAction(selected, 'focus');
         } else if (selected && e.key === 'p') {
           doAction(selected, 'park');
+        } else if (selected && e.key === 'g') {
+          doAction(selected, 'sync');
         }
       });
     </script>
