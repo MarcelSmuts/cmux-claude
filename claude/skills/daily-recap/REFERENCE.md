@@ -89,7 +89,9 @@ query: is:saved
 - Each result carries its channel + permalink — keep those as the todo's source hint.
 - Filter to **actionable** items (a request or a task the user parked); drop pure references / FYIs / links-to-keep.
 - **Read-only:** there is no tool to un-save an item, so saved messages persist in the Later list (and keep
-  re-appearing here) until the user clears them in Slack. Dedupe-by-meaning in §9 stops on-list items being re-proposed.
+  re-appearing here) until the user clears them in Slack. Two filters in §9 keep that out of the proposal:
+  dedupe-by-meaning for items already on `todos.md`, and `declined.md` (`config.sh declined-path`) for
+  permalinks the user has already declined.
 
 ## Claude Code sessions
 

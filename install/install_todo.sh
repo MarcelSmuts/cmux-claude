@@ -14,8 +14,10 @@ chmod +x "$CLAUDE_DIR/skills/todo/scripts/"*.sh "$CLAUDE_DIR/skills/todo/scripts
 
 ok "todo skill installed"
 log ""
-log "${c_bold}To make it a standing tab:${c_reset} in cmux, open a new tab, rename it (exactly) ${c_bold}TODO${c_reset},"
-log "start Claude in it, and pin the tab."
+log "${c_bold}Standing tab:${c_reset} a pinned cmux tab named ${c_bold}TODO${c_reset} running Claude — project-agnostic,"
+log "so any directory works (default: your home directory)."
+create_standing_tab "TODO" "$HOME"
+log ""
 log "Open the dashboard any time: ${c_dim}bash ~/.claude/skills/todo/scripts/todos-server.sh${c_reset}"
 log ""
 log "Want the full standup recap (GitHub/Slack/calendar/meetings) feeding this list"

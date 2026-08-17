@@ -52,6 +52,13 @@ To wire one up: in cmux, open a tab, rename it *exactly* to the role's name
 (`MICROMANAGE`, `PLANNER`, or `TODO`), start Claude in it, and pin the tab so it stays
 open. That's the whole mechanism — no cmux-side config beyond the tab title.
 
+Each of the Micromanage/Planner/Todo installers offers to do this for you: if cmux is
+running, it asks for a directory (Planner defaults to your current repo if you're in
+one; Micromanage/Todo default to your home directory, since both are project-agnostic)
+and, only on confirmation, creates the tab, starts Claude in it, and pins it — skipping
+quietly (with the manual steps above printed instead) if cmux isn't running, a tab with
+that title already exists, or you decline.
+
 **Planner** also drives the session-orchestration scripts
 (`~/.claude/scripts/spawn.sh`, `tell.sh`, `sessions.sh`, `att.sh`, `unspawn.sh`): spawn
 a worktree session per plan slice, direct it, and tear it down when done. See the

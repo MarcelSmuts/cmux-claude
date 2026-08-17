@@ -64,3 +64,53 @@ merge_session_start_hook() {
   ' "$settings" > "$settings.tmp" && mv "$settings.tmp" "$settings"
   ok "added SessionStart hook to settings.json (backup at settings.json.pre-cmux-claude.bak)"
 }
+
+# Resolves the cmux CLI binary, preferring PATH, falling back to the app bundle.
+# Echoes nothing (and returns non-zero) if it can't find one.
+cmux_bin() {
+  local b="/Applications/cmux.app/Contents/Resources/bin/cmux"
+  have cmux && b="cmux"
+  [ -x "$b" ] || b="$(command -v cmux 2>/dev/null || true)"
+  { [ -n "$b" ] && [ -x "$b" ]; } || return 1
+  echo "$b"
+}
+
+# create_standing_tab <TITLE> <default-cwd>
+# Offers to open a new cmux tab titled <TITLE>, pointed at a directory (default
+# <default-cwd>, overridable), launch Claude in it, and pin it — so the SessionStart
+# role-injection hook picks it up on its very first prompt. Only runs for the
+# component whose install_*.sh calls it, and only after the user opts in here.
+# Never fails the install: on any skip/error it prints the manual fallback (rename a
+# tab yourself, start Claude, pin it) and returns 0.
+create_standing_tab() {
+  local title="$1" default_dir="${2:-$HOME}" bin found dir out ref win
+  manual() { log "  Do it by hand instead: open a tab, rename it (exactly) ${c_bold}$title${c_reset}, start Claude, and pin it."; }
+
+  bin="$(cmux_bin)" || { warn "cmux CLI not found — skipping automatic tab creation for '$title'."; manual; return 0; }
+  "$bin" ping >/dev/null 2>&1 \
+    || { warn "cmux isn't running — skipping automatic tab creation for '$title'."; manual; return 0; }
+
+  for win in $("$bin" --json list-windows 2>/dev/null | jq -r '.[].id'); do
+    found="$("$bin" --json list-workspaces --window "$win" 2>/dev/null \
+      | jq -r --arg t "$title" '.workspaces[] | select(.has_custom_title and .custom_title == $t) | .ref' | head -n1)"
+    [ -n "$found" ] && { ok "a '$title' tab already exists — leaving it alone."; return 0; }
+  done
+
+  confirm "Create and pin a '$title' tab now?" "y" || { manual; return 0; }
+  read -r -p "Directory for it to run in [$default_dir]: " dir </dev/tty
+  dir="${dir:-$default_dir}"
+  dir="$(cd "$dir" 2>/dev/null && pwd)" || { err "no such directory — skipping tab creation for '$title'."; manual; return 0; }
+
+  out="$("$bin" new-workspace --name "$title" --cwd "$dir" --command claude --focus false 2>&1)" \
+    || { err "cmux new-workspace failed: $out"; manual; return 0; }
+  ref="$(printf '%s\n' "$out" | grep -oE 'workspace:[0-9]+' | head -n1)"
+  if [ -z "$ref" ]; then
+    warn "created '$title' but couldn't resolve its ref to pin it — pin it manually in cmux."
+    return 0
+  fi
+  if "$bin" workspace-action --workspace "$ref" --action pin >/dev/null 2>&1; then
+    ok "created and pinned '$title' in $dir"
+  else
+    warn "created '$title' but pinning failed — pin it manually in cmux."
+  fi
+}

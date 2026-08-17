@@ -8,6 +8,8 @@
 #
 # The rolling todo list (todos.md) lives next to the config, for the same reason.
 # Resolve its path with `config.sh todos-path` — override with $CMUXCLAUDE_TODOS.
+# Same for declined.md, the Slack "Later" items the user has said no to: `config.sh
+# declined-path`, override with $CMUXCLAUDE_DECLINED.
 #
 # Format: simple KEY=VALUE lines (sourceable):
 #   github_login=...
@@ -21,20 +23,24 @@
 # Commands:
 #   config.sh get      # print config (KEY=VALUE); exit 1 if not configured yet
 #   config.sh detect   # print auto-detectable values (github_login, timezone) for first-run prefill
-#   config.sh path        # print the config file path
-#   config.sh todos-path  # print the rolling todo-list file path (todos.md, next to the config)
-#   config.sh sources     # print the enabled daily-recap sources, comma-separated (empty if none/not set)
+#   config.sh path          # print the config file path
+#   config.sh todos-path    # print the rolling todo-list file path (todos.md, next to the config)
+#   config.sh declined-path # print the declined-adds file path (declined.md, next to the config)
+#   config.sh sources       # print the enabled daily-recap sources, comma-separated (empty if none/not set)
 #   config.sh init --github-login X --slack-id Y --timezone Z [--calendar-id C] [--sources S] [--force]
 set -uo pipefail
 
 CONFIG="${CMUXCLAUDE_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/cmux-claude/config}"
 TODOS="${CMUXCLAUDE_TODOS:-$(dirname "$CONFIG")/todos.md}"
+DECLINED="${CMUXCLAUDE_DECLINED:-$(dirname "$CONFIG")/declined.md}"
 cmd="${1:-get}"; shift 2>/dev/null || true
 
 case "$cmd" in
   path) echo "$CONFIG" ;;
 
   todos-path) echo "$TODOS" ;;
+
+  declined-path) echo "$DECLINED" ;;
 
   sources)
     [ -f "$CONFIG" ] && (. "$CONFIG"; echo "${sources:-}") || echo "" ;;
@@ -78,5 +84,5 @@ case "$cmd" in
     echo "wrote $CONFIG" >&2
     cat "$CONFIG" ;;
 
-  *) echo "usage: config.sh {get|detect|path|todos-path|sources|init [--github-login X --slack-id Y --timezone Z --calendar-id C --sources S --force]}" >&2; exit 2 ;;
+  *) echo "usage: config.sh {get|detect|path|todos-path|declined-path|sources|init [--github-login X --slack-id Y --timezone Z --calendar-id C --sources S --force]}" >&2; exit 2 ;;
 esac

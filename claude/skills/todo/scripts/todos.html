@@ -27,6 +27,11 @@
   }
   button:hover { background: rgba(127,127,127,0.16); }
   button:disabled { opacity: 0.4; cursor: default; }
+  input[type=text] {
+    font: inherit; font-size: 0.85rem; padding: 0.45rem 0.7rem; border-radius: 6px;
+    border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit;
+    flex: 1; min-width: 14rem;
+  }
   .status { font-size: 0.78rem; opacity: 0.6; }
   .error { color: #c0392b; font-size: 0.82rem; margin: 0.5rem 0; }
   @media (prefers-color-scheme: dark) { .error { color: #ff8a75; } }
@@ -43,16 +48,22 @@
   .item-meta { font-size: 0.74rem; opacity: 0.55; margin-top: 0.15rem; }
   .done .item-text { opacity: 0.5; text-decoration: line-through; }
   .item-badges { flex-shrink: 0; display: flex; gap: 0.4rem; align-items: center; margin-top: 0.05rem; }
-  .effort-badge {
-    font-size: 0.68rem; padding: 0.15rem 0.5rem; border-radius: 999px;
-    border: 1px solid rgba(127,127,127,0.35); cursor: pointer; user-select: none;
-    opacity: 0.8; white-space: nowrap;
+  .effort-select {
+    font: inherit; font-size: 0.68rem; padding: 0.15rem 0.5rem; border-radius: 999px;
+    border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit;
+    cursor: pointer; opacity: 0.8; white-space: nowrap; appearance: none; text-align: center;
   }
-  .effort-badge:hover { opacity: 1; background: rgba(127,127,127,0.14); }
+  .effort-select:hover { opacity: 1; background: rgba(127,127,127,0.14); }
   .stale-badge {
     font-size: 0.68rem; opacity: 0.85; color: #9a6a00; white-space: nowrap;
   }
-  @media (prefers-color-scheme: dark) { .stale-badge { color: #e0b34d; } }
+  .due-badge { font-size: 0.68rem; opacity: 0.9; white-space: nowrap; }
+  .due-soon { color: #9a6a00; }
+  .due-over { color: #c0392b; }
+  @media (prefers-color-scheme: dark) {
+    .stale-badge, .due-soon { color: #e0b34d; }
+    .due-over { color: #ff8a75; }
+  }
   details { margin-top: 1.6rem; }
   summary { cursor: pointer; font-size: 0.85rem; opacity: 0.7; padding: 0.3rem 0; }
   h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.55; margin: 1.6rem 0 0.4rem; }
@@ -62,6 +73,8 @@
   <h1>Todos</h1>
   <div class="path" id="path">~/.config/cmux-claude/todos.md</div>
   <div class="bar">
+    <input type="text" id="addInput" placeholder="Add a todo…" autocomplete="off">
+    <button id="addBtn">Add</button>
     <button id="refreshBtn">Refresh</button>
     <span class="status" id="status"></span>
   </div>
@@ -71,11 +84,16 @@
 <script>
 let lines = [];   // raw file lines, source of truth
 let hadTrailingNewline = true;
+let version = null;   // server's hash of the content we last loaded; sent back on save
 
 const EFFORT_ORDER = ['S', 'M', 'L'];
 const STALE_DAYS = 7;
+const DUE_SOON_DAYS = 3;
+const VERSION_HEADER = 'X-Todos-Version';
 
 const el = {
+  addInput: document.getElementById('addInput'),
+  addBtn: document.getElementById('addBtn'),
   refreshBtn: document.getElementById('refreshBtn'),
   status: document.getElementById('status'),
   error: document.getElementById('error'),
@@ -87,9 +105,10 @@ function showError(msg) {
   el.error.style.display = msg ? 'block' : 'none';
 }
 function setStatus(msg) { el.status.textContent = msg; }
+function stamp(msg) { setStatus(msg + ' ' + new Date().toLocaleTimeString()); }
 
 // --- parsing ---
-// "- [ ] text · added 2026-08-11 · effort M · note" / "- [x] text · added ... · effort ... · done ... · note"
+// "- [ ] text · added 2026-08-11 · due 2026-08-20 · effort M · note"
 function parseLine(line) {
   const m = line.match(/^- \[([ xX])\] (.*)$/);
   if (!m) return null;
@@ -116,39 +135,43 @@ function daysSince(dateStr) {
   now.setHours(0, 0, 0, 0);
   return Math.round((now - then) / 86400000);
 }
+function daysUntil(dateStr) {
+  const d = daysSince(dateStr);
+  return d === null ? null : -d;
+}
 function effortRank(meta) {
   const idx = EFFORT_ORDER.indexOf(metaValue(meta, 'effort '));
   return idx === -1 ? EFFORT_ORDER.length : idx;
 }
+function delegatedTo(meta) {
+  return metaValue(meta, 'delegated to ');
+}
 function isStale(parsed) {
-  if (parsed.done) return false;
+  // a due date supersedes the age flag
+  if (parsed.done || metaValue(parsed.meta, 'due ')) return false;
   const d = daysSince(metaValue(parsed.meta, 'added '));
   return d !== null && d > STALE_DAYS;
 }
-// insert a new tag after 'effort' if present, else after 'added', else at the start —
-// keeps the canonical order: added, effort, done, free-text notes
-function insertTag(meta, tag) {
-  const after = ['effort ', 'added '];
-  for (const p of after) {
-    const i = meta.findIndex(x => x.startsWith(p));
-    if (i >= 0) return [...meta.slice(0, i + 1), tag, ...meta.slice(i + 1)];
-  }
-  return [tag, ...meta];
+// canonical tag order: added, due, effort, done, then free-text notes
+const TAG_ORDER = ['added ', 'due ', 'effort ', 'done '];
+function tagRank(part) {
+  const i = TAG_ORDER.findIndex(p => part.startsWith(p));
+  return i === -1 ? TAG_ORDER.length : i;   // free text sorts after every tag
 }
-function toggle(parsed) {
-  let meta = parsed.meta.slice();
-  if (!parsed.done) {
-    meta = insertTag(meta, 'done ' + todayLocal());
-  } else {
-    meta = meta.filter(x => !x.startsWith('done '));
-  }
-  return { done: !parsed.done, text: parsed.text, meta };
+function insertTag(meta, tag) {
+  const rank = tagRank(tag);
+  let at = 0;
+  meta.forEach((part, i) => { if (tagRank(part) < rank) at = i + 1; });
+  return [...meta.slice(0, at), tag, ...meta.slice(at)];
+}
+function setDone(parsed, done) {
+  let meta = parsed.meta.filter(x => !x.startsWith('done '));
+  if (done) meta = insertTag(meta, 'done ' + todayLocal());
+  return { done, text: parsed.text, meta };
 }
 function setEffort(parsed, value) {
-  let meta = parsed.meta.slice();
-  const i = meta.findIndex(x => x.startsWith('effort '));
-  if (i >= 0) meta[i] = 'effort ' + value;
-  else meta = insertTag(meta, 'effort ' + value);
+  let meta = parsed.meta.filter(x => !x.startsWith('effort '));
+  if (value) meta = insertTag(meta, 'effort ' + value);
   return { done: parsed.done, text: parsed.text, meta };
 }
 
@@ -168,25 +191,44 @@ function linkify(s) {
 }
 
 // --- rendering ---
+// open items: dated first (most overdue → soonest), then undated by effort
+function openSort(a, b) {
+  const da = metaValue(a.parsed.meta, 'due '), db = metaValue(b.parsed.meta, 'due ');
+  if (da && db) return da < db ? -1 : da > db ? 1 : 0;
+  if (da) return -1;
+  if (db) return 1;
+  return effortRank(a.parsed.meta) - effortRank(b.parsed.meta);
+}
+function doneSort(a, b) {
+  const da = metaValue(a.parsed.meta, 'done ') || '', db = metaValue(b.parsed.meta, 'done ') || '';
+  return da < db ? 1 : da > db ? -1 : 0;
+}
+
 function render() {
   const open = [];
+  const delegated = [];
   const done = [];
   lines.forEach((line, idx) => {
     const parsed = parseLine(line);
     if (!parsed) return;
-    (parsed.done ? done : open).push({ idx, parsed });
+    if (parsed.done) done.push({ idx, parsed });
+    else (delegatedTo(parsed.meta) ? delegated : open).push({ idx, parsed });
   });
 
-  if (!open.length && !done.length) {
+  if (!open.length && !delegated.length && !done.length) {
     el.content.innerHTML = '<div class="empty">No todos found in the file.</div>';
     return;
   }
 
-  open.sort((a, b) => effortRank(a.parsed.meta) - effortRank(b.parsed.meta));
-  done.sort((a, b) => effortRank(a.parsed.meta) - effortRank(b.parsed.meta));
+  open.sort(openSort);
+  delegated.sort(openSort);
+  done.sort(doneSort);
 
   const itemHtml = ({ idx, parsed }) => {
     const effort = metaValue(parsed.meta, 'effort ');
+    const due = metaValue(parsed.meta, 'due ');
+    const left = parsed.done ? null : daysUntil(due);
+    const dueClass = left === null ? null : left < 0 ? 'due-over' : left <= DUE_SOON_DAYS ? 'due-soon' : null;
     const stale = isStale(parsed);
     const staleDays = stale ? daysSince(metaValue(parsed.meta, 'added ')) : null;
     return `
@@ -197,8 +239,12 @@ function render() {
         ${parsed.meta.length ? `<div class="item-meta">${parsed.meta.map(escapeHtml).join(' · ')}</div>` : ''}
       </div>
       <div class="item-badges">
+        ${dueClass ? `<span class="due-badge ${dueClass}">${left < 0 ? '⏰' : '📅'} ${escapeHtml(due)}</span>` : ''}
         ${stale ? `<span class="stale-badge">⚠ ${staleDays}d</span>` : ''}
-        <span class="effort-badge" data-idx="${idx}" title="click to change">${effort || 'size?'}</span>
+        <select class="effort-select" data-idx="${idx}" title="effort">
+          <option value=""${effort ? '' : ' selected'}>size?</option>
+          ${EFFORT_ORDER.map(e => `<option value="${e}"${e === effort ? ' selected' : ''}>${e}</option>`).join('')}
+        </select>
       </div>
     </li>`;
   };
@@ -209,64 +255,123 @@ function render() {
     ? `<ul class="items">${open.map(itemHtml).join('')}</ul>`
     : `<div class="empty">Nothing open 🎉</div>`;
 
+  if (delegated.length) {
+    html += `<h2>Delegated / chasing (${delegated.length})</h2>`;
+    html += `<ul class="items">${delegated.map(itemHtml).join('')}</ul>`;
+  }
+
   html += `<details><summary>Done (${done.length})</summary><ul class="items">${done.map(itemHtml).join('')}</ul></details>`;
 
   el.content.innerHTML = html;
   el.content.querySelectorAll('input[type=checkbox]').forEach(cb => {
     cb.addEventListener('change', onToggle);
   });
-  el.content.querySelectorAll('.effort-badge').forEach(b => {
-    b.addEventListener('click', onEffortClick);
+  el.content.querySelectorAll('.effort-select').forEach(s => {
+    s.addEventListener('change', onEffortChange);
   });
 }
 
-async function onToggle(e) {
-  const li = e.target.closest('li');
-  const idx = Number(li.dataset.idx);
-  const parsed = parseLine(lines[idx]);
-  lines[idx] = buildLine(toggle(parsed));
-  render();
-  await save();
+// --- edits ---
+// An edit is an intent, not a line index: after a 409 the file has been re-read and the
+// indices have moved, so the intent is re-applied by matching the item's text.
+function findByText(text) {
+  return lines.findIndex(l => { const p = parseLine(l); return p && p.text === text; });
+}
+function applyIntent(intent) {
+  if (intent.insert !== undefined) {
+    if (findByText(intent.text) >= 0) return true;   // already there — someone else added it
+    const at = lines.findIndex(l => parseLine(l));
+    if (at >= 0) lines.splice(at, 0, intent.insert);
+    else lines.push(intent.insert);
+    return true;
+  }
+  const idx = findByText(intent.text);
+  if (idx < 0) return false;
+  lines[idx] = buildLine(intent.apply(parseLine(lines[idx])));
+  return true;
 }
 
-async function onEffortClick(e) {
-  const idx = Number(e.target.dataset.idx);
-  const parsed = parseLine(lines[idx]);
-  const cur = metaValue(parsed.meta, 'effort ');
-  const next = EFFORT_ORDER[(EFFORT_ORDER.indexOf(cur) + 1) % EFFORT_ORDER.length];
-  lines[idx] = buildLine(setEffort(parsed, next));
+async function commit(intent) {
+  if (!applyIntent(intent)) { showError('That item is no longer in the file.'); return; }
   render();
-  await save();
+  if (await save() !== 'conflict') return;
+
+  setStatus('file changed on disk — re-applying…');
+  if (!await loadTodos({ quiet: true })) return;
+  if (!applyIntent(intent)) {
+    render();
+    showError('The file changed on disk and that item is gone — your change was not saved.');
+    return;
+  }
+  render();
+  const result = await save();
+  if (result === 'conflict') showError('The file keeps changing underneath — refresh and try again.');
+  else if (result) stamp('merged with a change on disk, saved');
+}
+
+async function onToggle(e) {
+  const parsed = parseLine(lines[Number(e.target.closest('li').dataset.idx)]);
+  const done = !parsed.done;
+  await commit({ text: parsed.text, apply: p => setDone(p, done) });
+}
+
+async function onEffortChange(e) {
+  const parsed = parseLine(lines[Number(e.target.dataset.idx)]);
+  const next = e.target.value || null;   // "" is the unset option
+  await commit({ text: parsed.text, apply: p => setEffort(p, next) });
+}
+
+async function onAdd() {
+  const text = el.addInput.value.trim();
+  if (!text) return;
+  el.addInput.value = '';
+  // no effort tag: the next recap run estimates it, or the user clicks the "size?" badge
+  await commit({ text, insert: `- [ ] ${text} · added ${todayLocal()}` });
 }
 
 // --- server I/O ---
-async function loadTodos() {
+async function loadTodos(opts = {}) {
   try {
     const res = await fetch('/api/todos', { cache: 'no-store' });
     if (!res.ok) throw new Error('server returned ' + res.status);
     const text = await res.text();
+    version = res.headers.get(VERSION_HEADER);
     hadTrailingNewline = text.endsWith('\n');
     lines = text.replace(/\n$/, '').split('\n');
     render();
-    setStatus('loaded ' + new Date().toLocaleTimeString());
-    showError('');
+    if (!opts.quiet) { stamp('loaded'); showError(''); }
+    return true;
   } catch (err) {
     showError('Failed to load: ' + err.message);
+    return false;
   }
 }
+// true on success, 'conflict' when the file moved under us, false on any other failure
 async function save() {
   try {
     const text = lines.join('\n') + (hadTrailingNewline ? '\n' : '');
-    const res = await fetch('/api/todos', { method: 'POST', body: text });
+    const res = await fetch('/api/todos', {
+      method: 'POST',
+      headers: { [VERSION_HEADER]: version || '' },
+      body: text,
+    });
+    if (res.status === 409) return 'conflict';
     if (!res.ok) throw new Error('server returned ' + res.status);
-    setStatus('saved ' + new Date().toLocaleTimeString());
+    version = res.headers.get(VERSION_HEADER);
+    stamp('saved');
     showError('');
+    return true;
   } catch (err) {
     showError('Failed to save: ' + err.message);
+    return false;
   }
 }
 
-el.refreshBtn.addEventListener('click', loadTodos);
+el.refreshBtn.addEventListener('click', () => loadTodos());
+el.addBtn.addEventListener('click', onAdd);
+el.addInput.addEventListener('keydown', e => { if (e.key === 'Enter') onAdd(); });
+// a tab left open all day would otherwise show a stale list
+window.addEventListener('focus', () => loadTodos({ quiet: true }));
 loadTodos();
 </script>
 </body>

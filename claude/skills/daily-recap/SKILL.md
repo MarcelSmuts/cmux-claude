@@ -10,9 +10,10 @@ bullets. An add-on to the [todo](../todo/SKILL.md) skill — install that first;
 skill writes to the same rolling list rather than keeping a second one.
 
 **Read-only against every external service.** Never post, comment, react, merge, or
-edit anything on GitHub, Slack, Calendar, or Wispr Flow. The only thing this skill
-writes is the shared rolling todo list (`todos.md`) — and only after the user confirms
-the proposed changes (see §9). Everything else is markdown in chat.
+edit anything on GitHub, Slack, Calendar, or Wispr Flow. The only things this skill
+writes are the shared rolling todo list (`todos.md`) and its companion `declined.md`
+— and only after the user confirms the proposed changes (see §9). Everything else is
+markdown in chat.
 
 ## Configuration
 
@@ -59,7 +60,8 @@ Call it once per run (before §6, if `wispr` is enabled) and keep `name` + every
 
 The rolling todo list lives at `~/.config/cmux-claude/todos.md` (resolve with `bash
 ../todo/scripts/config.sh todos-path`) — the exact file the todo skill reads and
-writes. See §9 for how this skill maintains it.
+writes — alongside `declined.md` (`config.sh declined-path`), the Slack "Later"
+permalinks the user has said no to. See §9 for how both are maintained.
 
 ## Sources
 
@@ -280,16 +282,20 @@ still-open `- [ ]` items carried over from `todos.md`.
 
 The recap's follow-ups feed the shared list at `todos.md` (resolve with `bash
 ../todo/scripts/config.sh todos-path`; create it if absent — see the
-[todo skill](../todo/SKILL.md) for the file format). This is the one thing this skill
-*writes*, and it writes **only after the user confirms**: propose the changes, then
-wait for an explicit go-ahead (`write them`) before touching the file.
+[todo skill](../todo/SKILL.md) for the file format). It and `declined.md` are the only
+things this skill *writes*, and both are written **only after the user confirms**:
+propose the changes, then wait for an explicit go-ahead (`write them`) before touching
+either file.
 
 1. **Load** the current list (Read the file; if it doesn't exist, start from empty).
 2. **Pull the Slack "Later" list** *(only if `slack` is enabled)* — run the `is:saved`
    search (see [REFERENCE.md](REFERENCE.md) §Slack). These are messages the user
    parked to come back to, so treat each as a **candidate todo**. It is *not*
    day-scoped (`is:saved` ignores `on:`/`after:`), so it returns the whole saved list
-   every run — that's intended; dedupe (step 3) keeps it from piling up.
+   every run — that's intended; dedupe (step 3) keeps it from piling up. Also read
+   `declined.md` (`bash ../todo/scripts/config.sh declined-path`; may not exist) and
+   drop, silently, any saved message whose permalink is listed there — the user has
+   already said no to it.
 3. **Reconcile** the list against today's day-scoped findings, the meeting action
    items, the scratchpad notes, and the Later list (whichever of these are enabled),
    into a proposed set of changes:
@@ -302,8 +308,8 @@ wait for an explicit go-ahead (`write them`) before touching the file.
    - **Add** newly-discovered follow-ups that aren't already on the list, each stamped
      `· added YYYY-MM-DD` (today, `date +%F`) and `· effort S/M/L` — your best guess at
      relative size from what the item actually asks for. It's a guess, not a
-     commitment — the user can override it when confirming the diff, or later by
-     clicking the effort badge on the todos page. Sources, each only if enabled:
+     commitment — the user can override it when confirming the diff, or later from the
+     effort dropdown on the todos page. Sources, each only if enabled:
      - the day's Slack mentions/asks that still await the user's reply (`slack`);
      - **meeting action items owned by the user** (`wispr`), sourced as `(meeting:
        <title> · YYYY-MM-DD)`;
@@ -312,6 +318,9 @@ wait for an explicit go-ahead (`write them`) before touching the file.
      - **actionable items from the Later list** (`slack`) — a parked request or task;
      - **actionable scratchpad notes** (`wispr`), sourced as `(note: <title>)`;
      - anything actionable a **custom source** surfaced, sourced as `(<source name>)`.
+     When the source states a deadline ("by Friday", "end of next week", "check
+     tomorrow"), resolve it to a date and stamp `· due YYYY-MM-DD` too. Only when it's
+     stated — never infer a due date from urgency of tone.
      Skip items that are purely informational (a reference doc, an FYI, a link to
      keep) rather than an action for the user; tag the ones you do propose so their
      origin is clear, and keep any permalink as the source hint.
@@ -328,17 +337,27 @@ wait for an explicit go-ahead (`write them`) before touching the file.
    user to override the effort guess), `~ DONE? … (evidence)`, `? UNCLEAR …`, and a
    count of untouched items — then **wait** for the user's go-ahead (`write them`, or
    edits, including effort corrections). Don't write on your own initiative.
-5. On confirmation, **write** the file.
+5. On confirmation, **write** the file — and append the permalink of every Later add
+   the user declined to `declined.md`, saying which ones you're recording so declining
+   isn't a silent side-effect.
 
 > **The Later list is read-only.** This skill can't un-save a Slack item, so a saved
 > message stays in the user's Later list (and thus keeps re-appearing in the
-> `is:saved` results) until they clear it in Slack. Once it's on `todos.md` the dedupe
-> in step 3 stops it being re-proposed; if the user *declines* an add, it will surface
-> again next run (re-decline, or clear it in Slack). Wispr Flow is read-only the same
-> way — there's no tool to tick off a meeting action item at the source.
+> `is:saved` results) until they clear it in Slack. Two things keep it out of the
+> proposal: dedupe (step 3) once it's on `todos.md`, and `declined.md` once the user
+> has said no to it. Wispr Flow is read-only the same way — there's no tool to tick off
+> a meeting action item at the source.
+
+**`declined.md`** — one declined Slack permalink per line, optionally followed by the
+item text so a human can read the list. Lines starting with `#` are comments:
+
+```
+https://yourteam.slack.com/archives/C0123ABCDEF/p1700000000000000  API migration thread
+```
 
 **Displaying the list** and the file format itself are owned by the
-[todo skill](../todo/SKILL.md) — see it for the exact markdown shape and the dashboard
+[todo skill](../todo/SKILL.md) — see it for the exact markdown shape (including the
+`due` tag this skill writes), the sort/grouping rules, and the dashboard
 (`scripts/todos-server.sh`, which lives there, not here).
 
 ## Notes
