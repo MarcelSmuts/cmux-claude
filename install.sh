@@ -15,12 +15,13 @@ if [ "$(uname -s)" != "Darwin" ]; then
   exit 1
 fi
 
-KEYS=(cmux cmux_hooks micromanage planner todo daily_recap)
+KEYS=(cmux cmux_hooks micromanage planner shell todo daily_recap)
 declare -A LABEL=(
   [cmux]="cmux — the terminal app itself (Homebrew cask, skip if already installed)"
   [cmux_hooks]="cmux hooks setup — wires cmux's git/PR/port sidebar into Claude Code + other CLI agents"
   [micromanage]="Micromanage — session-status skill + standing tab + local dashboard"
   [planner]="Planner — standing plan-and-orchestrate tab (spawn/tell/sessions/att/unspawn)"
+  [shell]="Shell integration — zsh ccw + spawn/tell/sessions/att/unspawn functions (sourced from ~/.zshrc)"
   [todo]="Todo — rolling follow-up list, standing tab + local dashboard"
   [daily_recap]="Daily Recap — add-on to Todo: full standup recap (asks which sources)"
 )

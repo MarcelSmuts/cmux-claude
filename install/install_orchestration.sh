@@ -7,7 +7,7 @@ set -uo pipefail
 
 have jq || { err "jq is required (brew install jq)."; exit 1; }
 
-for f in spawn.sh tell.sh sessions.sh att.sh unspawn.sh session-lib.sh session-role.sh new-worktree.sh; do
+for f in spawn.sh tell.sh sessions.sh att.sh unspawn.sh session-lib.sh session-role.sh new-worktree.sh cleanup-worktrees.sh; do
   link_into "scripts/$f" "scripts/$f"
   chmod +x "$CLAUDE_DIR/scripts/$f"
 done
@@ -16,5 +16,6 @@ mkdir -p "$CLAUDE_DIR/roles"
 merge_session_start_hook "$CLAUDE_DIR/scripts/session-role.sh"
 
 ok "orchestration scripts installed to ~/.claude/scripts/"
-log "  Add ~/.claude/scripts to your PATH to use spawn/tell/sessions/att/unspawn directly, e.g.:"
+log "  To call spawn/tell/sessions/att/unspawn (and ccw) by name, install the ${c_bold}shell${c_reset}"
+log "  component (adds zsh functions + completion). Or add the dir to your PATH:"
 log "    ${c_dim}echo 'export PATH=\"\$HOME/.claude/scripts:\$PATH\"' >> ~/.zshrc${c_reset}"
