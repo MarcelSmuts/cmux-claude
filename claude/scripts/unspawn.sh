@@ -66,6 +66,9 @@ else
   echo "unspawn: no live tab '$BRANCH' (already exited?)"
 fi
 
+# The tab is gone (or was already), so drop its spawn-ownership row.
+sc_unregister_spawn "$BRANCH"
+
 # Stop here if we were only asked to close the tab.
 [ "$KEEP_WT" -eq 1 ] && exit 0
 [ -n "$MAIN" ] || { echo "unspawn: not inside a git repo, so can't resolve the worktree for '$BRANCH'." >&2; exit 1; }

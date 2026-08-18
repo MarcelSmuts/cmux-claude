@@ -99,6 +99,10 @@ REF="$(printf '%s\n' "$OUT" | grep -oE 'workspace:[0-9]+' | head -n1)"
 [ -n "$REF" ] || { echo "spawn: opened the workspace but couldn't resolve its ref." >&2; exit 1; }
 echo "spawn: opened tab '$BRANCH' in $WT"
 
+# Record who spawned this tab, so a planner can list only its own workers with
+# `sessions --mine`. Owner = the calling tab's own title ('-' outside cmux). Best-effort.
+sc_register_spawn "$BRANCH" "$(sc_self_title 2>/dev/null || true)"
+
 # Wait for Claude's input box, so a first prompt lands in the box and not in boot noise.
 if [ "$NO_WAIT" -eq 0 ]; then
   ready=0 waited=0

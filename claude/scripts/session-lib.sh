@@ -12,7 +12,24 @@
 # Source this; don't execute it.
 
 export CMUX_QUIET="${CMUX_QUIET:-1}"   # silence cmux's legacy-alias notices
-CMUX="${CMUX_BIN:-cmux}"
+
+# Locate the cmux CLI. Prefer an explicit CMUX_BIN, then cmux on PATH, then the app
+# bundle — so hooks (which don't inherit the shell's PATH) still find it.
+CMUX="${CMUX_BIN:-}"
+if [ -z "$CMUX" ]; then
+  if command -v cmux >/dev/null 2>&1; then
+    CMUX="cmux"
+  else
+    for _cmux_cand in "${CMUX_BUNDLED_CLI_PATH:-}" /Applications/cmux.app/Contents/Resources/bin/cmux; do
+      [ -n "$_cmux_cand" ] && [ -x "$_cmux_cand" ] && { CMUX="$_cmux_cand"; break; }
+    done
+    [ -n "$CMUX" ] || CMUX="cmux"
+    unset _cmux_cand
+  fi
+fi
+
+# Where spawn ownership is recorded — one TSV row per spawned tab. See sc_register_spawn.
+SPAWN_OWNERS_TSV="${SPAWN_OWNERS_TSV:-$HOME/.config/cmux-claude/spawn-owners.tsv}"
 
 # Resolve the MAIN checkout from a dir inside a repo OR a worktree. Echoes the path;
 # returns non-zero (and echoes nothing) when the dir isn't a git checkout.
@@ -62,3 +79,57 @@ sc_find_ws() {
 
 # Convenience: just the workspace ref for branch $1 (empty when none).
 sc_ws_ref() { sc_find_ws "$1" | cut -f2; }
+
+# Slugify a title the way role-file lookup does: lowercase, non-alphanumerics -> '-',
+# trimmed of leading/trailing dashes.
+sc_slugify() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//'
+}
+
+# Echo the custom_title of the cmux workspace THIS process runs in (the calling tab),
+# or nothing (returns non-zero) when not inside a titled cmux workspace. Used to attribute
+# a spawn to its owner and to resolve a tab's own role — mirrors session-role.sh.
+sc_self_title() {
+  [ -n "${CMUX_WORKSPACE_ID:-}" ] || return 1
+  local ident ws win
+  ident="$("$CMUX" --json identify 2>/dev/null)" || return 1
+  ws=$(printf '%s' "$ident" | jq -r '.caller.workspace_ref // empty')
+  win=$(printf '%s' "$ident" | jq -r '.caller.window_ref // empty')
+  { [ -n "$ws" ] && [ -n "$win" ]; } || return 1
+  "$CMUX" --json list-workspaces --window "$win" 2>/dev/null \
+    | jq -r --arg ref "$ws" '.workspaces[] | select(.ref == $ref) | .custom_title // empty'
+}
+
+# Spawn-ownership registry: a dumb append-only TSV of <branch-title>\t<owner-title>\t<utc-ts>.
+# No locking beyond mkdir -p + append; collisions are a non-problem at this scale, and every
+# operation degrades to a silent no-op when the file/dir is missing or unwritable.
+
+# Record that <owner> ($2, '-' when unknown) spawned the tab titled <branch> ($1).
+sc_register_spawn() {
+  local branch="$1" owner="${2:--}" ts
+  [ -n "$branch" ] || return 0
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo -)"
+  mkdir -p "$(dirname "$SPAWN_OWNERS_TSV")" 2>/dev/null || return 0
+  printf '%s\t%s\t%s\n' "$branch" "$owner" "$ts" >> "$SPAWN_OWNERS_TSV" 2>/dev/null || true
+}
+
+# Drop every row for the tab titled <branch> ($1) — called on teardown.
+sc_unregister_spawn() {
+  local branch="$1" tmp
+  [ -n "$branch" ] && [ -f "$SPAWN_OWNERS_TSV" ] || return 0
+  tmp="$SPAWN_OWNERS_TSV.tmp.$$"
+  if awk -F'\t' -v b="$branch" '$1 != b' "$SPAWN_OWNERS_TSV" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$SPAWN_OWNERS_TSV" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+  else
+    rm -f "$tmp" 2>/dev/null
+  fi
+}
+
+# Echo the owner-title recorded for the tab titled <branch> ($1) — the most recent row
+# wins. Empty when there's no row or no registry.
+sc_owner_of() {
+  local branch="$1"
+  [ -n "$branch" ] && [ -f "$SPAWN_OWNERS_TSV" ] || return 0
+  awk -F'\t' -v b="$branch" '$1 == b { o = $2 } END { if (o != "") print o }' \
+    "$SPAWN_OWNERS_TSV" 2>/dev/null
+}
