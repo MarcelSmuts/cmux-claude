@@ -72,10 +72,22 @@ if [ "$BASE_EXPLICIT" -eq 0 ]; then
     fi
 fi
 
-# Refresh the base branch so the worktree starts from the latest commit.
-if [[ "$BASE" == origin/* ]]; then
-    git fetch origin "${BASE#origin/}" -q || echo "⚠️  Could not fetch ${BASE} — using the local ref." >&2
-fi
+# Refresh from origin so the worktree starts at the latest commit. Handle both
+# origin/-qualified refs and bare branch names (e.g. --base main): when the base
+# names a branch origin has, fetch it and start from the fresh origin/<branch>,
+# never a possibly-stale local branch of the same name. A local-only branch or a
+# raw SHA (fetch fails) is left as-is.
+case "$BASE" in
+    origin/*)
+        git fetch origin "${BASE#origin/}" -q \
+            || echo "⚠️  Could not fetch ${BASE} — using the local ref." >&2
+        ;;
+    *)
+        if git fetch origin "$BASE" -q 2>/dev/null; then
+            BASE="origin/$BASE"
+        fi
+        ;;
+esac
 
 if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
     echo "Base ref '$BASE' does not exist. Pass an existing ref with --base." >&2
