@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installs the Claude Code statusline: a one-line status (cumulative session tokens,
-# cost, context-window usage) shown at the bottom of every session. Symlinks the
+# Installs the Claude Code statusline: a one-line status (model, cumulative session
+# tokens, cost, context-window usage) shown at the bottom of every session. Symlinks the
 # script into ~/.claude/ and points settings.json's statusLine at it.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"

@@ -26,9 +26,9 @@ running AI coding agents side by side. This repo packages:
 - **Shell integration** — a zsh layer giving you `ccw` (open/focus one cmux tab per
   git worktree, with tab completion) and `spawn`/`tell`/`sessions`/`att`/`unspawn` as
   plain commands, sourced from your `~/.zshrc`
-- **Statusline** — a one-line Claude Code status line showing cumulative session
-  tokens, cost, and context-window usage; the context figure turns yellow with a 😫
-  once usage passes 20%
+- **Statusline** — a one-line Claude Code status line showing the model plus
+  cumulative session tokens, cost, and context-window usage; the context figure
+  turns yellow with a 😫 once usage passes 20%
 
 Everything is **optional** — the installer is a checklist, and you only get what you
 tick.
