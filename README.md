@@ -16,6 +16,9 @@ running AI coding agents side by side. This repo packages:
 - **Daily Recap** — an optional add-on to Todo: a full standup recap pulled from
   whichever sources you enable (GitHub, Slack, Google Calendar, Wispr Flow recorded
   meetings, local Claude Code sessions — or sources you define yourself)
+- **Shell integration** — a zsh layer giving you `ccw` (open/focus one cmux tab per
+  git worktree, with tab completion) and `spawn`/`tell`/`sessions`/`att`/`unspawn` as
+  plain commands, sourced from your `~/.zshrc`
 
 Everything is **optional** — the installer is a checklist, and you only get what you
 tick.
@@ -62,9 +65,28 @@ that title already exists, or you decline.
 **Planner** also drives the session-orchestration scripts
 (`~/.claude/scripts/spawn.sh`, `tell.sh`, `sessions.sh`, `att.sh`, `unspawn.sh`): spawn
 a worktree session per plan slice, direct it, and tear it down when done. See the
-comment header in each script for usage; add `~/.claude/scripts` to your `PATH` to run
-them directly (`spawn feature-x "..."` instead of `bash
-~/.claude/scripts/spawn.sh ...`).
+comment header in each script for usage. To call them by name (`spawn feature-x "..."`
+instead of `bash ~/.claude/scripts/spawn.sh ...`), install the **Shell integration**
+component below, or add `~/.claude/scripts` to your `PATH`.
+
+## Shell integration (zsh)
+
+The **Shell integration** component symlinks two files into `~/.claude/shell/` and
+adds a fenced block to your `~/.zshrc` that sources them (backing the rc up once):
+
+- `ccw <branch>` — the interactive front door: create the worktree if needed
+  (`~/.claude/scripts/new-worktree.sh`), open **one cmux tab per worktree** running
+  Claude, and focus it; `ccw <branch>` again refocuses. `ccw` with no args lists open
+  tabs, `ccw --list` lists this repo's worktrees (● = open tab), and `ccw --prune`
+  removes finished ones (`~/.claude/scripts/cleanup-worktrees.sh`). `ccw <TAB>`
+  completes existing worktree names.
+- `spawn` / `tell` / `sessions` / `att` / `unspawn` — thin function wrappers over the
+  orchestration scripts, so you don't type `bash ~/.claude/scripts/…`. These are plain
+  POSIX functions, so they also work if you source the file from bash; `ccw` and its
+  completion are zsh-only.
+
+The component pulls in the orchestration scripts automatically (you don't need to pick
+Planner too). Open a new terminal, or `source ~/.zshrc`, to pick the commands up.
 
 ## Components
 
@@ -74,11 +96,14 @@ them directly (`spawn feature-x "..."` instead of `bash
 | **cmux hooks** | `cmux hooks setup` | cmux installed |
 | **Micromanage** | `skills/micromanage/`, `roles/micromanage.md` | `jq`, `node` (for the dashboard) |
 | **Planner** | `roles/planner.md`, orchestration scripts | `jq` |
+| **Shell integration** | `shell/*.zsh`, a sourced block in `~/.zshrc`, orchestration scripts | `jq`, zsh |
 | **Todo** | `skills/todo/`, `roles/todo.md`, orchestration scripts | `jq`, `python3` (for the dashboard) |
 | **Daily Recap** | `skills/daily-recap/` | Todo; `gh` CLI / Slack MCP / Calendar & Wispr Flow connectors, per source you enable |
 
-Picking Micromanage, Planner, or Todo also installs the shared orchestration scripts
-and the `SessionStart` role-injection hook — you don't need to select that separately.
+Picking Micromanage, Planner, Todo, or Shell integration also installs the shared
+orchestration scripts (`spawn`/`tell`/`sessions`/`att`/`unspawn`, plus
+`new-worktree.sh` / `cleanup-worktrees.sh`) and the `SessionStart` role-injection hook
+— you don't need to select those separately.
 
 ## Daily Recap: sources
 
@@ -106,7 +131,9 @@ time to change which sources are enabled without redoing the rest of your config
 Every install step symlinks into `~/.claude/`, so removing one is: delete the symlink
 (`rm ~/.claude/skills/<name>` / `rm ~/.claude/roles/<name>.md`). To remove the
 `SessionStart` hook, edit `~/.claude/settings.json` (a pre-install backup is left at
-`settings.json.pre-cmux-claude.bak` the first time this repo touches it).
+`settings.json.pre-cmux-claude.bak` the first time this repo touches it). To remove the
+shell integration, delete the fenced `# >>> cmux-claude shell integration >>>` block
+from `~/.zshrc` (a backup is left at `~/.zshrc.pre-cmux-claude.bak`).
 
 ## Requirements
 

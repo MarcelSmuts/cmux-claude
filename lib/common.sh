@@ -2,7 +2,12 @@
 # common.sh — shared helpers for the install/*.sh component scripts. Source it; don't run it.
 set -uo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve this file's own path whether it's sourced from bash or zsh. zsh doesn't set
+# $BASH_SOURCE, so fall back to its %N prompt-expansion; guarded so bash never has to
+# expand the zsh-only form.
+if [ -n "${BASH_SOURCE:-}" ]; then _common_self="${BASH_SOURCE[0]}"; else _common_self="${(%):-%N}"; fi
+REPO_ROOT="$(cd "$(dirname "$_common_self")/.." && pwd)"
+unset _common_self
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 PAYLOAD="$REPO_ROOT/claude"
 
