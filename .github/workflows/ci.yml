@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # shellcheck ships on the ubuntu runner. -x follows sourced files
+      # (install/*.sh -> lib/common.sh, claude/scripts/*.sh -> session-lib.sh);
+      # .shellcheckrc turns that on and resolves the directives.
+      - name: shellcheck
+        run: git ls-files '*.sh' | xargs shellcheck -x
+
+      # Advisory only: a non-blocking style signal. We deliberately do NOT reformat
+      # the existing scripts to satisfy it, so this must never fail the build.
+      - name: shfmt (advisory, non-blocking)
+        continue-on-error: true
+        run: |
+          curl -sSfL "https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64" -o /tmp/shfmt
+          chmod +x /tmp/shfmt
+          /tmp/shfmt -d $(git ls-files '*.sh')
+
+  test:
+    name: Tests (syntax sweep + bats)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats and zsh
+        run: sudo apt-get update && sudo apt-get install -y bats zsh
+
+      # Cheap breakage check across the whole tree, in each language's own parser.
+      - name: Syntax sweep
+        run: |
+          git ls-files '*.sh'  | xargs -I{} bash -n {}
+          git ls-files '*.zsh' | xargs -I{} zsh -n {}
+          git ls-files '*.py'  | xargs -I{} python3 -m py_compile {}
+
+      - name: bats unit tests
+        run: bats test/

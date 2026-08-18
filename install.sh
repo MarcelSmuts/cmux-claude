@@ -3,7 +3,8 @@
 # happens for a component you don't select. Safe to re-run any time (every step is
 # idempotent and backs up anything it would otherwise overwrite).
 set -uo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")"
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+# shellcheck source=lib/common.sh
 . "lib/common.sh"
 
 log "${c_bold}cmux-claude installer${c_reset}"

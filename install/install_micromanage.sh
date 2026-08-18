@@ -2,6 +2,7 @@
 # Installs the micromanage skill (session-status table + local dashboard UI) and its
 # standing-role tab brief.
 set -uo pipefail
+# shellcheck source=../lib/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 have jq   || { err "jq is required (brew install jq)."; exit 1; }

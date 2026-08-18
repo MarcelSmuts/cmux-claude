@@ -141,7 +141,7 @@ tab_of() { awk -F'\t' -v p="$1" '$1==p{print $2; exit}' "$tabf" 2>/dev/null; }
 #    args: transcript, mtime, cwd, tab-title, pid → appends one row to $rowsf
 classify() {
   local F="$1" mt="$2" cwd="$3" tab="$4" pid="${5:-}"
-  local idle=$(( NOW - mt )) active role stop kinds is_err state title branch proj last ws jqcwd
+  local idle=$(( NOW - mt )) active role stop kinds is_err state branch proj last ws jqcwd
 
   # One jq per transcript for everything the row needs: on macOS a process spawn costs
   # ~30ms, so with a tab per branch open the spawn count IS the runtime.

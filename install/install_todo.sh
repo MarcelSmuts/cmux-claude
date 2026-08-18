@@ -2,6 +2,7 @@
 # Installs the standalone todo skill (rolling list + local dashboard, no external
 # service dependency) and its standing-role tab brief.
 set -uo pipefail
+# shellcheck source=../lib/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 have python3 || { err "python3 is required (backs the todo dashboard's local server)."; exit 1; }

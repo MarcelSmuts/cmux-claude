@@ -5,6 +5,7 @@
 # Usage:
 #   att.sh <branch>
 set -uo pipefail
+# shellcheck source=session-lib.sh
 . "$(dirname "$0")/session-lib.sh"
 
 TARGET="${1:-}"

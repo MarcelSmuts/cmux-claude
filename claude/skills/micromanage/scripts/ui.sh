@@ -12,14 +12,14 @@ DIR="$(cd "$(dirname "$0")/../server" && pwd)"
 RUNTIME="$DIR/.runtime.json"
 LOG="$DIR/.server.log"
 
-PORT=""; OPEN=1; FG=0; STOP=0; URL_ONLY=0
+PORT=""; OPEN=1; FG=0; STOP=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --port)       PORT="${2:-}"; shift ;;
     --no-open)    OPEN=0 ;;
     --foreground) FG=1 ;;
     --stop)       STOP=1 ;;
-    --url)        URL_ONLY=1; OPEN=0 ;;
+    --url)        OPEN=0 ;;
     --help|-h)    sed -n '2,10p' "$0"; exit 0 ;;
     *)            echo "ui: unknown flag: $1" >&2; exit 2 ;;
   esac

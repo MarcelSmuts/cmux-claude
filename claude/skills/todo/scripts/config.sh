@@ -43,6 +43,7 @@ case "$cmd" in
   declined-path) echo "$DECLINED" ;;
 
   sources)
+    # shellcheck source=/dev/null  # runtime config file, not present at lint time
     [ -f "$CONFIG" ] && (. "$CONFIG"; echo "${sources:-}") || echo "" ;;
 
   get)
@@ -61,6 +62,7 @@ case "$cmd" in
     # Preload existing values so re-running init to change ONE field (e.g. daily-recap's
     # installer setting --sources) doesn't blank out the others.
     github_login=""; slack_user_id=""; timezone=""; calendar_id="primary"; sources=""
+    # shellcheck source=/dev/null  # runtime config file, not present at lint time
     [ -f "$CONFIG" ] && . "$CONFIG"
     login="$github_login" slack="$slack_user_id" tz="$timezone" cal="$calendar_id" src="$sources"
     force=0

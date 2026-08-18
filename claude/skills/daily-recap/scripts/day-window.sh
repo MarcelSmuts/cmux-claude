@@ -6,10 +6,14 @@
 # the UTC offset is derived from the target date, not hardcoded.
 # Works with both macOS (BSD) and Linux (GNU) `date`.
 # Usage: day-window.sh [YYYY-MM-DD]   (reference "today"; defaults to system today)
+# The date helpers below use `[ bsd ] && bsd-date || gnu-date` intentionally: the gnu
+# fallback only fires when the bsd branch fails, which for a valid date it never does.
+# shellcheck disable=SC2015
 set -uo pipefail
 
 # Use the configured timezone if set (config.sh stores `timezone=`), else the machine's local tz.
 CONFIG="${CMUXCLAUDE_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/cmux-claude/config}"
+# shellcheck source=/dev/null  # runtime config file, not present at lint time
 [ -f "$CONFIG" ] && . "$CONFIG"
 [ -n "${CMUXCLAUDE_TZ:-${timezone:-}}" ] && export TZ="${CMUXCLAUDE_TZ:-$timezone}"
 

@@ -4,6 +4,7 @@
 # This is cmux integrating with the agents, not something this repo ships — cmux must
 # already be installed.
 set -uo pipefail
+# shellcheck source=../lib/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 CMUX_BIN="/Applications/cmux.app/Contents/Resources/bin/cmux"

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # common.sh — shared helpers for the install/*.sh component scripts. Source it; don't run it.
+# shellcheck disable=SC2034  # the color palette below is consumed by the scripts that source this file
 set -uo pipefail
 
 # Resolve this file's own path whether it's sourced from bash or zsh. zsh doesn't set
