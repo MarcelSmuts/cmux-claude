@@ -50,11 +50,22 @@ export CMUX_SOCKET_PASSWORD="<pw>"
 cmux ping                   # expect: PONG
 ```
 
-Why the config file and not only Settings → Automation: a password set through the UI
-can be **cleared by a cmux app update/restart**, after which password mode is still on
-but there is nothing to match, so *every* external CLI call fails with
-`Password mode is enabled but no socket password is configured in Settings.` Keeping
-`socketPassword` in `cmux.json` means `cmux reload-config` re-establishes it any time.
+Why the config file and not only Settings → Automation: on startup cmux reads
+`automation.socketPassword` and **strips the plaintext from `cmux.json`**. When it does
+not end up with a usable stored password, password mode is still on with nothing to
+match, so *every* external CLI call fails with `Password mode is enabled but no socket
+password is configured in Settings.` — a correct `$CMUX_SOCKET_PASSWORD` does not help,
+because there is nothing on the app side to compare it against.
+
+Expect this to recur after any cmux restart or update; the config file is not a durable
+store, it is the channel for handing the app a password. So keep `socketPassword` in
+`cmux.json` (that is what makes recovery a one-liner) and know the repair: write the
+value back, `cmux reload-config`, `cmux ping`. The workflow scripts now do exactly that
+for you — `sc_require_cmux` calls `sc_repair_socket_password`, which re-arms the
+stripped config from `$CMUX_SOCKET_PASSWORD` and retries, so `spawn`/`tell`/`sessions`
+keep working across restarts as long as that variable is exported. It only touches the
+stripped state and never overwrites a password that is present, so a genuine mismatch
+still surfaces as an error. Set `CMUX_SOCKET_PW_AUTOREPAIR=` to disable it.
 CLI auth precedence: `--password` > `$CMUX_SOCKET_PASSWORD` > password saved in
 Settings. The workflow scripts (`spawn`/`tell`/`sessions`/`att`/`unspawn`) pick up
 `$CMUX_SOCKET_PASSWORD` from the environment automatically.
@@ -129,7 +140,7 @@ the symlink with a real copy, or add a per-tab-title `roles/<tab-title>.md` real
 | --- | --- | --- |
 | `install.sh`: `declare: -A: invalid option` / parse error | stock macOS bash 3.2 | run under bash 4+ (`brew install bash`) |
 | Every symlink dangles after install | installer sourced from zsh (`$BASH_SOURCE` unset) | re-run with `bash install.sh` |
-| `Password mode is enabled but no socket password is configured in Settings.` | password mode on, app has no stored password | set `automation.socketPassword` in `cmux.json` + `cmux reload-config` |
+| `Password mode is enabled but no socket password is configured in Settings.` | password mode on, app has no stored password — cmux strips the plaintext from `cmux.json` on startup, so this returns after a restart | export `$CMUX_SOCKET_PASSWORD` and let `sc_repair_socket_password` re-arm it; by hand: set `automation.socketPassword` in `cmux.json` + `cmux reload-config` |
 | `Access denied` / `Authentication required` from an external shell | agent shell isn't authing | `export CMUX_SOCKET_PASSWORD=…` (matches `cmux.json`) |
 | `spawn`/`tell` say cmux is unreachable but the app is open | socket auth rejected, not a down app | same as the two rows above (this is what `sc_require_cmux` now distinguishes) |
 | `cmux tab-action --action pin --tab tab:N` → `not_found` | `tab:N` needs a workspace context | add `--workspace workspace:N` |
@@ -143,4 +154,5 @@ the symlink with a real copy, or add a per-tab-title `roles/<tab-title>.md` real
 - Role hook: `~/.claude/scripts/session-role.sh`, registered as `SessionStart` in
   `~/.claude/settings.json`.
 - Orchestration scripts: `~/.claude/scripts/{spawn,tell,sessions,att,unspawn}.sh` — each
-  has a usage header; `sc_require_cmux` in `session-lib.sh` is the socket preflight.
+  has a usage header; `sc_require_cmux` in `session-lib.sh` is the socket preflight
+  (and self-heals a stripped socket password via `sc_repair_socket_password`).
