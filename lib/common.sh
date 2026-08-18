@@ -72,6 +72,29 @@ merge_session_start_hook() {
   ok "added SessionStart hook to settings.json (backup at settings.json.pre-cmux-claude.bak)"
 }
 
+# merge_statusline <command-path> — idempotently points settings.json's statusLine at
+# <command-path>. Requires jq. Won't clobber a statusLine you've already set to
+# something else (warns and leaves it). Backs up settings.json once before writing.
+merge_statusline() {
+  local cmd="$1" settings="$CLAUDE_DIR/settings.json" existing
+  have jq || { err "jq is required to edit $settings — install it (brew install jq) and re-run."; return 1; }
+  mkdir -p "$CLAUDE_DIR"
+  [ -f "$settings" ] || echo '{}' > "$settings"
+  existing="$(jq -r '.statusLine.command // empty' "$settings" 2>/dev/null)"
+  if [ "$existing" = "$cmd" ]; then
+    ok "statusLine already set in settings.json"
+    return 0
+  fi
+  if [ -n "$existing" ]; then
+    warn "settings.json already has a statusLine ($existing) — leaving it. To use this one, set statusLine.command to $cmd."
+    return 0
+  fi
+  [ -f "$settings.pre-cmux-claude.bak" ] || cp "$settings" "$settings.pre-cmux-claude.bak"
+  jq --arg cmd "$cmd" '.statusLine = { type: "command", command: $cmd }' \
+    "$settings" > "$settings.tmp" && mv "$settings.tmp" "$settings"
+  ok "set statusLine in settings.json (backup at settings.json.pre-cmux-claude.bak)"
+}
+
 # Resolves the cmux CLI binary, preferring PATH, falling back to the app bundle.
 # Echoes nothing (and returns non-zero) if it can't find one.
 cmux_bin() {

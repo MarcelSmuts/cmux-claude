@@ -21,13 +21,14 @@ fi
 # system bash. Index i describes one component across all three: KEYS[i] names its
 # install/install_<key>.sh, LABELS[i] is its menu text, SELECTED[i] is 0/1. The menu
 # numbers users type are just i+1, so keep the three in the same order.
-KEYS=(cmux cmux_hooks micromanage planner shell todo daily_recap)
+KEYS=(cmux cmux_hooks micromanage planner shell statusline todo daily_recap)
 LABELS=(
   "cmux — the terminal app itself (Homebrew cask, skip if already installed)"
   "cmux hooks setup — wires cmux's git/PR/port sidebar into Claude Code + other CLI agents"
   "Micromanage — session-status skill + standing tab + local dashboard"
   "Planner — standing plan-and-orchestrate tab (spawn/tell/sessions/att/unspawn)"
   "Shell integration — zsh ccw + spawn/tell/sessions/att/unspawn functions (sourced from ~/.zshrc)"
+  "Statusline — one-line tokens · cost · context-usage status in every Claude Code session"
   "Todo — rolling follow-up list, standing tab + local dashboard"
   "Daily Recap — add-on to Todo: full standup recap (asks which sources)"
 )
