@@ -18,12 +18,12 @@
 #   --no-wait            don't wait for Claude's prompt before returning/sending
 #   --attach             switch focus to the new tab after starting (else stays put)
 #   --model <model>      launch Claude on this model (alias or full id); omit to
-#                        use the settings.json default
+#                        default to opus (SPAWN_MODEL= uses the settings default)
 #   --effort <level>     launch Claude at this effort (low|medium|high|xhigh);
 #                        omit to use the settings.json default
 #   --base / --install   passed through to new-worktree.sh
 #
-# Env: CCW_LAUNCH_CMD (default: claude), SPAWN_READY_TIMEOUT (default: 30 seconds).
+# Env: CCW_LAUNCH_CMD (default: claude), SPAWN_MODEL (default: opus), SPAWN_READY_TIMEOUT (default: 30s).
 set -uo pipefail
 # shellcheck source=session-lib.sh
 . "$(dirname "$0")/session-lib.sh"
@@ -51,6 +51,15 @@ while [ $# -gt 0 ]; do
   shift
 done
 [ -n "$BRANCH" ] || { echo "spawn: need a <branch>/label. Try --help." >&2; exit 2; }
+
+# Default spawned sessions to opus unless a model was already chosen — via --model
+# above or a CCW_LAUNCH_CMD that names one. Effort is intentionally left at the
+# settings.json default. Set SPAWN_MODEL= (empty) to use that default model too.
+SPAWN_MODEL="${SPAWN_MODEL-opus}"
+case "$LAUNCH" in
+  *--model*) ;;
+  *) [ -n "$SPAWN_MODEL" ] && LAUNCH="$LAUNCH --model $SPAWN_MODEL" ;;
+esac
 
 sc_require_cmux || exit 1
 

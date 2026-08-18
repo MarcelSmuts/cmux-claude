@@ -81,6 +81,12 @@ comment header in each script for usage. To call them by name (`spawn feature-x 
 instead of `bash ~/.claude/scripts/spawn.sh ...`), install the **Shell integration**
 component below, or add `~/.claude/scripts` to your `PATH`.
 
+Reflecting that plan/implement split, the models default accordingly: the **PLANNER**
+tab launches on **fable**, and each **spawned** worker launches on **opus** (at the
+`settings.json` default effort). Override per-spawn with `spawn --model <model>`, or
+change the defaults with the `PLANNER_MODEL` / `SPAWN_MODEL` env vars (set either to
+empty to fall back to your `settings.json` model).
+
 ## Shell integration (zsh)
 
 The **Shell integration** component symlinks two files into `~/.claude/shell/` and

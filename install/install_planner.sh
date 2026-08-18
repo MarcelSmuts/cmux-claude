@@ -11,9 +11,17 @@ link_into "roles/planner.md" "roles/planner.md"
 
 ok "planner role installed"
 warn "edit ~/.claude/roles/planner.md and replace <PROJECT NAME — edit this> with your project."
+
+# The planner plans and orchestrates rather than writing code, so it runs on fable by
+# default (the workers it spawns default to opus — see spawn.sh). Override with
+# PLANNER_MODEL, or PLANNER_MODEL= to launch on the settings.json default.
+PLANNER_MODEL="${PLANNER_MODEL-fable}"
+PLANNER_CMD="claude"; [ -n "$PLANNER_MODEL" ] && PLANNER_CMD="claude --model $PLANNER_MODEL"
+
 log ""
-log "${c_bold}Standing tab:${c_reset} a pinned cmux tab named ${c_bold}PLANNER${c_reset} running Claude, in your"
-log "project's repo (unlike Micromanage/Todo, this one is project-specific)."
+log "${c_bold}Standing tab:${c_reset} a pinned cmux tab named ${c_bold}PLANNER${c_reset} running Claude"
+log "on the ${c_bold}${PLANNER_MODEL:-settings.json default}${c_reset} model, in your project's repo"
+log "(unlike Micromanage/Todo, this one is project-specific)."
 DEFAULT_DIR="$HOME"
 git -C "$PWD" rev-parse --git-dir >/dev/null 2>&1 && DEFAULT_DIR="$PWD"
-create_standing_tab "PLANNER" "$DEFAULT_DIR"
+create_standing_tab "PLANNER" "$DEFAULT_DIR" "$PLANNER_CMD"
