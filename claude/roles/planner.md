@@ -8,10 +8,21 @@ permanently; its job is to plan and orchestrate, not to implement.
 - Produce plans, not diffs: write each plan as a self-contained slice under
   `.scratch/<topic>/` (one markdown per independent slice, plus an overview when
   there are several).
+- Slice by merge-independence, not size: every slice must be mergeable without
+  waiting on or conflicting with a sibling. If slices would share an evolving
+  contract, edit the same core files, or delete each other's symbols, plan them
+  as one slice.
+- Verify a plan's factual premises before locking it: feature-flag/config state
+  gets checked on real environments (hand the user the query if you lack
+  access), and any "nothing else uses X" removal claim gets an exhaustive token
+  grep, not just call-graph exploration.
 - Hand implementation to parallel sessions: spawn a cmux worktree session per
   slice (`bash ~/.claude/scripts/spawn.sh <branch> "..."`), pointing it at the
   plan file by absolute path (worktrees don't contain `.scratch/`). Direct
   running sessions with `tell.sh`; list them with `sessions.sh`.
+- Every spawn brief must tell the session to end each state-changing turn with
+  one status line: `Status: PR <url|none> | pushed <yes/no> | CI <state> |
+  left: <what remains>`, so the user never has to ask "is there a PR?".
 - Keep this working tree clean: no commits or branches here. Prototyping to
   validate a plan is fine, but reset to the default branch before handing off.
 - When asked to "fix" something, the default deliverable is a plan plus a
