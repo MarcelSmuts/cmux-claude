@@ -16,25 +16,34 @@ if [ "$(uname -s)" != "Darwin" ]; then
   exit 1
 fi
 
+# Three parallel indexed arrays, not one associative array: macOS ships bash 3.2, which
+# has no `declare -A`, and this installer is macOS-only — so it has to run under the
+# system bash. Index i describes one component across all three: KEYS[i] names its
+# install/install_<key>.sh, LABELS[i] is its menu text, SELECTED[i] is 0/1. The menu
+# numbers users type are just i+1, so keep the three in the same order.
 KEYS=(cmux cmux_hooks micromanage planner shell todo daily_recap)
-declare -A LABEL=(
-  [cmux]="cmux — the terminal app itself (Homebrew cask, skip if already installed)"
-  [cmux_hooks]="cmux hooks setup — wires cmux's git/PR/port sidebar into Claude Code + other CLI agents"
-  [micromanage]="Micromanage — session-status skill + standing tab + local dashboard"
-  [planner]="Planner — standing plan-and-orchestrate tab (spawn/tell/sessions/att/unspawn)"
-  [shell]="Shell integration — zsh ccw + spawn/tell/sessions/att/unspawn functions (sourced from ~/.zshrc)"
-  [todo]="Todo — rolling follow-up list, standing tab + local dashboard"
-  [daily_recap]="Daily Recap — add-on to Todo: full standup recap (asks which sources)"
+LABELS=(
+  "cmux — the terminal app itself (Homebrew cask, skip if already installed)"
+  "cmux hooks setup — wires cmux's git/PR/port sidebar into Claude Code + other CLI agents"
+  "Micromanage — session-status skill + standing tab + local dashboard"
+  "Planner — standing plan-and-orchestrate tab (spawn/tell/sessions/att/unspawn)"
+  "Shell integration — zsh ccw + spawn/tell/sessions/att/unspawn functions (sourced from ~/.zshrc)"
+  "Todo — rolling follow-up list, standing tab + local dashboard"
+  "Daily Recap — add-on to Todo: full standup recap (asks which sources)"
 )
-declare -A SELECTED=()
+if [ "${#KEYS[@]}" -ne "${#LABELS[@]}" ]; then
+  err "install.sh: KEYS and LABELS are out of sync (${#KEYS[@]} vs ${#LABELS[@]})."
+  exit 1
+fi
+SELECTED=()
+for i in "${!KEYS[@]}"; do SELECTED[i]=0; done
 
 render() {
   log ""
-  local i=1
-  for k in "${KEYS[@]}"; do
-    local mark=" "; [ "${SELECTED[$k]:-0}" = "1" ] && mark="x"
-    printf '  %s[%s]%s %d) %s\n' "$c_bold" "$mark" "$c_reset" "$i" "${LABEL[$k]}"
-    i=$((i + 1))
+  local i mark
+  for i in "${!KEYS[@]}"; do
+    mark=" "; [ "${SELECTED[i]}" = "1" ] && mark="x"
+    printf '  %s[%s]%s %d) %s\n' "$c_bold" "$mark" "$c_reset" "$((i + 1))" "${LABELS[i]}"
   done
   log ""
   log "Type numbers to toggle (space-separated), 'a' for all, or Enter to install the selection."
@@ -46,14 +55,13 @@ if [ -t 0 ]; then
     read -r -p "> " input </dev/tty
     case "$input" in
       "") break ;;
-      a|A) for k in "${KEYS[@]}"; do SELECTED[$k]=1; done ;;
+      a|A) for i in "${!KEYS[@]}"; do SELECTED[i]=1; done ;;
       *)
         for n in $input; do
           [[ "$n" =~ ^[0-9]+$ ]] || continue
           idx=$((n - 1))
           if [ "$idx" -lt 0 ] || [ "$idx" -ge "${#KEYS[@]}" ]; then continue; fi
-          k="${KEYS[$idx]}"
-          if [ "${SELECTED[$k]:-0}" = "1" ]; then SELECTED[$k]=0; else SELECTED[$k]=1; fi
+          if [ "${SELECTED[idx]}" = "1" ]; then SELECTED[idx]=0; else SELECTED[idx]=1; fi
         done
         ;;
     esac
@@ -61,23 +69,25 @@ if [ -t 0 ]; then
 else
   err "not running in a terminal — pass component flags instead, e.g.: ./install.sh --todo --micromanage"
   ANY=0
-  for k in "${KEYS[@]}"; do
-    flag="--${k//_/-}"
-    for a in "$@"; do [ "$a" = "$flag" ] && { SELECTED[$k]=1; ANY=1; }; done
+  for i in "${!KEYS[@]}"; do
+    flag="--${KEYS[i]//_/-}"
+    for a in "$@"; do [ "$a" = "$flag" ] && { SELECTED[i]=1; ANY=1; }; done
   done
   [ "$ANY" -eq 1 ] || exit 1
 fi
 
 CHOSEN=()
-for k in "${KEYS[@]}"; do [ "${SELECTED[$k]:-0}" = "1" ] && CHOSEN+=("$k"); done
+for i in "${!KEYS[@]}"; do [ "${SELECTED[i]}" = "1" ] && CHOSEN+=("$i"); done
 [ "${#CHOSEN[@]}" -gt 0 ] || { log "nothing selected — exiting."; exit 0; }
 
+NAMES=()
+for i in "${CHOSEN[@]}"; do NAMES+=("${KEYS[i]}"); done
 log ""
-log "${c_bold}Installing:${c_reset} ${CHOSEN[*]}"
-for k in "${CHOSEN[@]}"; do
+log "${c_bold}Installing:${c_reset} ${NAMES[*]}"
+for i in "${CHOSEN[@]}"; do
   log ""
-  log "${c_bold}── ${LABEL[$k]}${c_reset}"
-  bash "install/install_${k}.sh"
+  log "${c_bold}── ${LABELS[i]}${c_reset}"
+  bash "install/install_${KEYS[i]}.sh"
 done
 
 log ""
