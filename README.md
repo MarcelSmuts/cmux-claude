@@ -49,6 +49,11 @@ Not at a terminal, or want to skip the prompts? Pass flags instead:
 ./install.sh --micromanage --todo --daily-recap
 ```
 
+> **Installing or driving this from an AI agent?** See [`llms.txt`](llms.txt) — an
+> execute-top-to-bottom runbook that front-loads the non-obvious traps (the bash-4+
+> requirement, and the cmux socket-control password setup an agent needs before it can
+> spawn or pin tabs non-interactively).
+
 ## How the standing tabs work
 
 Each standing-tab skill (Micromanage, Planner, Todo) ships a **role file** under
@@ -145,6 +150,8 @@ from `~/.zshrc` (a backup is left at `~/.zshrc.pre-cmux-claude.bak`).
 ## Requirements
 
 - macOS (cmux itself is macOS-only)
+- **bash 4+ to run `install.sh`** — it uses associative arrays, which stock macOS bash
+  3.2 lacks; `brew install bash` and run it under that if `./install.sh` fails to parse
 - [Homebrew](https://brew.sh) — for installing cmux
 - `jq` — used by the role-injection hook and settings.json merge
 - `node` — only if you install Micromanage (its dashboard)

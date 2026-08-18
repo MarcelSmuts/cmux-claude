@@ -25,11 +25,25 @@ sc_main_repo() {
 }
 
 # Fail early, with a clear message, when the cmux app / control socket is unreachable.
+# `ping` fails two very different ways, so split them: a rejected socket password needs
+# a config fix, not "open cmux" — conflating them sends the user down the wrong path.
 sc_require_cmux() {
   command -v "$CMUX" >/dev/null 2>&1 \
     || { echo "cmux: '$CMUX' is not on PATH." >&2; return 1; }
-  "$CMUX" ping >/dev/null 2>&1 \
-    || { echo "cmux: app isn't running / socket unreachable — open cmux first." >&2; return 1; }
+  local out
+  out="$("$CMUX" ping 2>&1)" && return 0
+  case "$out" in
+    *[Pp]assword*|*[Aa]uthentication*|*"Access denied"*)
+      echo "cmux: socket auth rejected — password mode is on but the CLI can't authenticate." >&2
+      echo "      Give the app a password to match (\$CMUX_SOCKET_PASSWORD isn't enough on its own):" >&2
+      echo "        set automation.socketPassword in ~/.config/cmux/cmux.json, then:  cmux reload-config" >&2
+      echo "        (or set it in cmux Settings > Automation). Use the same value as \$CMUX_SOCKET_PASSWORD." >&2
+      ;;
+    *)
+      echo "cmux: app isn't running / socket unreachable — open cmux first." >&2
+      ;;
+  esac
+  return 1
 }
 
 # Echo "<window-id>\t<workspace-ref>" for the workspace whose custom_title == $1,
