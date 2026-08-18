@@ -6,6 +6,7 @@ set -uo pipefail
 # Resolve this file's own path whether it's sourced from bash or zsh. zsh doesn't set
 # $BASH_SOURCE, so fall back to its %N prompt-expansion; guarded so bash never has to
 # expand the zsh-only form.
+# shellcheck disable=SC2296  # ${(%):-%N} is zsh syntax, reached only when bash's $BASH_SOURCE is unset
 if [ -n "${BASH_SOURCE:-}" ]; then _common_self="${BASH_SOURCE[0]}"; else _common_self="${(%):-%N}"; fi
 REPO_ROOT="$(cd "$(dirname "$_common_self")/.." && pwd)"
 unset _common_self

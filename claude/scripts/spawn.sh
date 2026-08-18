@@ -59,7 +59,7 @@ if [ -n "$USE_DIR" ]; then
   WT="$(cd "$USE_DIR" 2>/dev/null && pwd)" || { echo "spawn: no such dir: $USE_DIR" >&2; exit 1; }
   MAIN="$(sc_main_repo "$WT")" || MAIN="$WT"
 else
-  MAIN="$(sc_main_repo)" || { echo "spawn: not inside a git repo (use --dir <path>)." >&2; exit 1; }
+  MAIN="$(sc_main_repo "$PWD")" || { echo "spawn: not inside a git repo (use --dir <path>)." >&2; exit 1; }
   WT="$MAIN/.claude/worktrees/$BRANCH"
 fi
 

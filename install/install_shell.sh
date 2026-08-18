@@ -21,6 +21,9 @@ if [ -f "$RC" ] && grep -qF "$BEGIN" "$RC"; then
   ok "shell integration already sourced from $RC"
 else
   [ -f "$RC" ] && cp "$RC" "$RC.pre-cmux-claude.bak"
+  # The single quotes are the point: these lines are written verbatim into ~/.zshrc and
+  # must expand there, at shell-startup time, not here in the installer.
+  # shellcheck disable=SC2016
   {
     echo ""
     echo "$BEGIN"

@@ -11,9 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # shellcheck ships on the ubuntu runner. -x follows sourced files
-      # (install/*.sh -> lib/common.sh, claude/scripts/*.sh -> session-lib.sh);
-      # .shellcheckrc turns that on and resolves the directives.
+      # Pinned rather than using the runner's preinstalled shellcheck: the two drift,
+      # and a version bump in the image would fail the build on findings a contributor
+      # can't reproduce locally. Bump this deliberately, with the fixes in the same PR.
+      - name: Install shellcheck (pinned)
+        run: |
+          curl -sSfL "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz" \
+            | tar -xJ -C /tmp shellcheck-v0.11.0/shellcheck
+          sudo install /tmp/shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
+          shellcheck --version
+
+      # -x follows sourced files (install/*.sh -> lib/common.sh, claude/scripts/*.sh ->
+      # session-lib.sh); .shellcheckrc turns that on and resolves the directives.
       - name: shellcheck
         run: git ls-files '*.sh' | xargs shellcheck -x
 

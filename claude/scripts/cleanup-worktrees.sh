@@ -18,7 +18,7 @@ set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 MAIN_WORKTREE="$REPO_ROOT"
 
-cd "$MAIN_WORKTREE"
+cd "$MAIN_WORKTREE" || exit 1
 
 # Always start by pruning git's internal references to deleted worktrees
 git worktree prune

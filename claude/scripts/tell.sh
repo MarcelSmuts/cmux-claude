@@ -25,7 +25,9 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-[ -n "$TARGET" ] && [ -n "$MSG" ] || { echo "tell: usage: tell <branch> \"instruction\"" >&2; exit 2; }
+if [ -z "$TARGET" ] || [ -z "$MSG" ]; then
+  echo "tell: usage: tell <branch> \"instruction\"" >&2; exit 2
+fi
 
 sc_require_cmux || exit 1
 

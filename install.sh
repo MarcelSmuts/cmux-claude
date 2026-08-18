@@ -51,7 +51,7 @@ if [ -t 0 ]; then
         for n in $input; do
           [[ "$n" =~ ^[0-9]+$ ]] || continue
           idx=$((n - 1))
-          [ "$idx" -ge 0 ] && [ "$idx" -lt "${#KEYS[@]}" ] || continue
+          if [ "$idx" -lt 0 ] || [ "$idx" -ge "${#KEYS[@]}" ]; then continue; fi
           k="${KEYS[$idx]}"
           if [ "${SELECTED[$k]:-0}" = "1" ]; then SELECTED[$k]=0; else SELECTED[$k]=1; fi
         done

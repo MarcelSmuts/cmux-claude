@@ -31,7 +31,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$TARGET" ] || { echo "unspawn: usage: unspawn <branch> [--keep-worktree] [--force]" >&2; exit 2; }
 
-MAIN="$(sc_main_repo 2>/dev/null)" || MAIN=""
+MAIN="$(sc_main_repo "$PWD" 2>/dev/null)" || MAIN=""
 BRANCH="$TARGET"
 
 # 1) Close the tab (workspace), if one is live. Worktree cleanup still runs even when
