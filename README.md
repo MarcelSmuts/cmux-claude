@@ -84,6 +84,14 @@ comment header in each script for usage. To call them by name (`spawn feature-x 
 instead of `bash ~/.claude/scripts/spawn.sh ...`), install the **Shell integration**
 component below, or add `~/.claude/scripts` to your `PATH`.
 
+Reflecting that plan/implement split, the models default accordingly: the **PLANNER**
+tab launches on **fable**, and each **spawned** worker launches on **opus** (at the
+`settings.json` default effort). Override per-spawn with `spawn --model <model>`, or
+change the defaults with the `PLANNER_MODEL` / `SPAWN_MODEL` env vars (set either to
+empty to fall back to your `settings.json` model). To restart Claude inside an
+existing PLANNER tab on the right model, use the `planner` shell function (Shell
+integration component) instead of a bare `claude`.
+
 ## Shell integration (zsh)
 
 The **Shell integration** component symlinks two files into `~/.claude/shell/` and
@@ -99,6 +107,10 @@ adds a fenced block to your `~/.zshrc` that sources them (backing the rc up once
   orchestration scripts, so you don't type `bash ~/.claude/scripts/…`. These are plain
   POSIX functions, so they also work if you source the file from bash; `ccw` and its
   completion are zsh-only.
+- `planner` — launch Claude on the planner model (fable; honors `PLANNER_MODEL`) in
+  the current directory. For restarting Claude inside your pinned PLANNER tab — the
+  role brief comes from the tab title, so a bare `claude` there would keep the role
+  but lose the model.
 
 The component pulls in the orchestration scripts automatically (you don't need to pick
 Planner too). Open a new terminal, or `source ~/.zshrc`, to pick the commands up.

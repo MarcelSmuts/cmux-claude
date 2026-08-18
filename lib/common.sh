@@ -105,15 +105,15 @@ cmux_bin() {
   echo "$b"
 }
 
-# create_standing_tab <TITLE> <default-cwd>
+# create_standing_tab <TITLE> <default-cwd> [launch-cmd]
 # Offers to open a new cmux tab titled <TITLE>, pointed at a directory (default
-# <default-cwd>, overridable), launch Claude in it, and pin it — so the SessionStart
-# role-injection hook picks it up on its very first prompt. Only runs for the
-# component whose install_*.sh calls it, and only after the user opts in here.
-# Never fails the install: on any skip/error it prints the manual fallback (rename a
-# tab yourself, start Claude, pin it) and returns 0.
+# <default-cwd>, overridable), launch <launch-cmd> (default "claude") in it, and pin
+# it — so the SessionStart role-injection hook picks it up on its very first prompt.
+# Only runs for the component whose install_*.sh calls it, and only after the user
+# opts in here. Never fails the install: on any skip/error it prints the manual
+# fallback (rename a tab yourself, start Claude, pin it) and returns 0.
 create_standing_tab() {
-  local title="$1" default_dir="${2:-$HOME}" bin found dir out ref win
+  local title="$1" default_dir="${2:-$HOME}" launch="${3:-claude}" bin found dir out ref win
   manual() { log "  Do it by hand instead: open a tab, rename it (exactly) ${c_bold}$title${c_reset}, start Claude, and pin it."; }
 
   bin="$(cmux_bin)" || { warn "cmux CLI not found — skipping automatic tab creation for '$title'."; manual; return 0; }
@@ -131,7 +131,7 @@ create_standing_tab() {
   dir="${dir:-$default_dir}"
   dir="$(cd "$dir" 2>/dev/null && pwd)" || { err "no such directory — skipping tab creation for '$title'."; manual; return 0; }
 
-  out="$("$bin" new-workspace --name "$title" --cwd "$dir" --command claude --focus false 2>&1)" \
+  out="$("$bin" new-workspace --name "$title" --cwd "$dir" --command "$launch" --focus false 2>&1)" \
     || { err "cmux new-workspace failed: $out"; manual; return 0; }
   ref="$(printf '%s\n' "$out" | grep -oE 'workspace:[0-9]+' | head -n1)"
   if [ -z "$ref" ]; then
