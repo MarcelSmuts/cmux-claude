@@ -26,6 +26,9 @@ running AI coding agents side by side. This repo packages:
 - **Shell integration** — a zsh layer giving you `ccw` (open/focus one cmux tab per
   git worktree, with tab completion) and `spawn`/`tell`/`sessions`/`att`/`unspawn` as
   plain commands, sourced from your `~/.zshrc`
+- **Statusline** — a one-line Claude Code status line showing the model plus
+  cumulative session tokens, cost, and context-window usage; the context figure
+  turns yellow with a 😫 once usage passes 20%
 
 Everything is **optional** — the installer is a checklist, and you only get what you
 tick.
@@ -132,6 +135,7 @@ Planner too). Open a new terminal, or `source ~/.zshrc`, to pick the commands up
 | **Micromanage** | `skills/micromanage/`, `roles/micromanage.md` | `jq`, `node` (for the dashboard) |
 | **Planner** | `roles/planner.md`, orchestration scripts | `jq` |
 | **Shell integration** | `shell/*.zsh`, a sourced block in `~/.zshrc`, orchestration scripts | `jq`, zsh |
+| **Statusline** | `statusline.sh`, a `statusLine` entry in `settings.json` | `jq` |
 | **Todo** | `skills/todo/`, `roles/todo.md`, orchestration scripts | `jq`, `python3` (for the dashboard) |
 | **Daily Recap** | `skills/daily-recap/` | Todo; `gh` CLI / Slack MCP / Calendar & Wispr Flow connectors, per source you enable |
 
@@ -168,7 +172,9 @@ Every install step symlinks into `~/.claude/`, so removing one is: delete the sy
 `SessionStart` hook, edit `~/.claude/settings.json` (a pre-install backup is left at
 `settings.json.pre-cmux-claude.bak` the first time this repo touches it). To remove the
 shell integration, delete the fenced `# >>> cmux-claude shell integration >>>` block
-from `~/.zshrc` (a backup is left at `~/.zshrc.pre-cmux-claude.bak`).
+from `~/.zshrc` (a backup is left at `~/.zshrc.pre-cmux-claude.bak`). To remove the
+statusline, delete `~/.claude/statusline.sh` and the `statusLine` block from
+`~/.claude/settings.json`.
 
 ## Requirements
 
@@ -176,6 +182,6 @@ from `~/.zshrc` (a backup is left at `~/.zshrc.pre-cmux-claude.bak`).
 - **bash 4+ to run `install.sh`** — it uses associative arrays, which stock macOS bash
   3.2 lacks; `brew install bash` and run it under that if `./install.sh` fails to parse
 - [Homebrew](https://brew.sh) — for installing cmux
-- `jq` — used by the role-injection hook and settings.json merge
+- `jq` — used by the role-injection hook, the statusline, and settings.json merges
 - `node` — only if you install Micromanage (its dashboard)
 - `python3` — only if you install Todo (its dashboard's local server)

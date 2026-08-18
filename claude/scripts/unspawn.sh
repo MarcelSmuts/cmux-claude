@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # unspawn.sh — tear down a Claude tab opened via spawn/ccw: close its cmux workspace
-# and (by default) remove the worktree + branch it ran in. The inverse of spawn.sh.
+# and (by default) remove the worktree + branch it ran in, plus its per-worktree test
+# database in repos that have one. The inverse of spawn.sh.
 # Address it by branch/tab name.
 #
 # When no live tab is found we still treat the argument as a branch label, so a
@@ -90,6 +91,12 @@ if [ -d "$WT" ]; then
 else
   echo "unspawn: no worktree at $WT"
 fi
+
+# The worktree's own integration-test database goes with it, in repos that ship
+# .cursor/commands/worktree-test-db.sh; the helper refuses to touch anything
+# outside its test_wt_* prefix.
+TESTDB="$MAIN/.cursor/commands/worktree-test-db.sh"
+[ -f "$TESTDB" ] && bash "$TESTDB" drop "$BRANCH"
 
 # 3) Delete the branch: safe (-d, merged only) unless --force (-D).
 if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH"; then
