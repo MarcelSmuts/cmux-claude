@@ -136,6 +136,10 @@ REF="$(printf '%s\n' "$OUT" | grep -oE 'workspace:[0-9]+' | head -n1)"
 [ -n "$REF" ] || { echo "spawn: opened the workspace but couldn't resolve its ref." >&2; exit 1; }
 echo "spawn: opened tab '$BRANCH' in $WT"
 
+# Record who spawned this tab, so a planner can list only its own workers with
+# `sessions --mine`. Owner = the calling tab's own title ('-' outside cmux). Best-effort.
+sc_register_spawn "$BRANCH" "$(sc_self_title 2>/dev/null || true)"
+
 # Wait for Claude's input box, so a prompt lands in the box and not in boot noise.
 # Markers cover the current UI (mode footer) and older UIs, since the old-only
 # pattern is why every spawn used to "look not ready" and warn at the timeout.

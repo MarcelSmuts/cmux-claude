@@ -10,7 +10,6 @@ bash "$(dirname "${BASH_SOURCE[0]}")/install_orchestration.sh"
 link_into "roles/planner.md" "roles/planner.md"
 
 ok "planner role installed"
-warn "edit ~/.claude/roles/planner.md and replace <PROJECT NAME — edit this> with your project."
 
 # The planner plans and orchestrates rather than writing code, so it runs on fable by
 # default (the workers it spawns default to opus — see spawn.sh). Override with
@@ -25,3 +24,9 @@ log "(unlike Micromanage/Todo, this one is project-specific)."
 DEFAULT_DIR="$HOME"
 git -C "$PWD" rev-parse --git-dir >/dev/null 2>&1 && DEFAULT_DIR="$PWD"
 create_standing_tab "PLANNER" "$DEFAULT_DIR" "$PLANNER_CMD"
+
+log ""
+log "Need more than one planner? With the ${c_bold}shell${c_reset} component installed,"
+log "${c_bold}planner <name> [<repo-path>]${c_reset} opens a ${c_bold}PLANNER: <name>${c_reset} tab anchored to a repo,"
+log "on the planner model, with the same brief. A planner lists its own spawned workers"
+log "with ${c_bold}sessions.sh --mine${c_reset}."

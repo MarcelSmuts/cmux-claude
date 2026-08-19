@@ -107,6 +107,27 @@ Two things that will otherwise mislead you:
   create a real `~/.claude/roles/micromanage.md` (not a symlink into the clone) — model
   it on `roles/planner.md` / `roles/todo.md`.
 
+## Multiple / named planners
+
+More than one planner can run at once, each anchored to its own repo/topic. Open one
+without leaving the shell (Shell integration installed):
+
+```bash
+planner viz ~/path/to/project   # opens tab "PLANNER: viz" in that repo, on the planner model
+```
+
+The role hook slugifies the title and looks up `roles/<slug>.md`; when a qualified title
+like `PLANNER: viz` has no exact `roles/planner-viz.md`, it **falls back to the part
+before the first `:`** (`roles/planner.md`) and tells the session its qualifier ("viz").
+So one `roles/planner.md` serves every `PLANNER: <name>` tab, and a hand-written
+`roles/planner-viz.md` still overrides it for that one tab. This prefix fallback is
+generic — any `ROLE: qualifier` title works, not just planners.
+
+`spawn` records which tab spawned each worker in
+`~/.config/cmux-claude/spawn-owners.tsv` (`<branch>\t<owner-title>\t<utc-ts>`). From a
+planner tab, `sessions.sh --mine` lists only that planner's own workers; plain
+`sessions.sh` lists every tab with an `OWNER` column. `unspawn` drops the row.
+
 ## Customizing roles without dirtying the clone
 
 `~/.claude/roles/*.md` are symlinks into this clone, so editing one in place makes the

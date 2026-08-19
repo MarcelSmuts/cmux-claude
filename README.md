@@ -84,6 +84,15 @@ comment header in each script for usage. To call them by name (`spawn feature-x 
 instead of `bash ~/.claude/scripts/spawn.sh ...`), install the **Shell integration**
 component below, or add `~/.claude/scripts` to your `PATH`.
 
+**Multiple planners.** The standing `PLANNER` tab is one planner; you can run more,
+each scoped to its own repo/topic. With the Shell integration installed,
+`planner <name> [<repo-path>]` opens a new tab titled `PLANNER: <name>` in that repo
+(default: the current one) on the planner model, with the same role brief loaded — the
+role hook matches the `PLANNER:` prefix, and a hand-written `roles/planner-<name>.md`
+still overrides it for that one tab. `spawn` records which tab spawned each worker, so
+each planner sees only its own with `sessions.sh --mine` (plain `sessions.sh` still
+lists every tab, with an `OWNER` column).
+
 Reflecting that plan/implement split, the models default accordingly: the **PLANNER**
 tab launches on **fable**, and each **spawned** worker launches on **opus** (at the
 `settings.json` default effort). Override per-spawn with `spawn --model <model>`, or
@@ -110,7 +119,9 @@ adds a fenced block to your `~/.zshrc` that sources them (backing the rc up once
 - `planner` — launch Claude on the planner model (fable; honors `PLANNER_MODEL`) in
   the current directory. For restarting Claude inside your pinned PLANNER tab — the
   role brief comes from the tab title, so a bare `claude` there would keep the role
-  but lose the model.
+  but lose the model. Give it a name (`planner <name> [<repo-path>]`) and instead of
+  relaunching in place it opens a new `PLANNER: <name>` tab in that repo (see
+  **Multiple planners** above).
 
 The component pulls in the orchestration scripts automatically (you don't need to pick
 Planner too). Open a new terminal, or `source ~/.zshrc`, to pick the commands up.
