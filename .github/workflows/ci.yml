@@ -38,11 +38,22 @@ jobs:
   test:
     name: Tests (syntax sweep + bats)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
+      # Retried and time-boxed: the runner's apt mirror intermittently stalls on
+      # InRelease, which without a bound hangs the job until the 6h runner limit.
       - name: Install bats and zsh
-        run: sudo apt-get update && sudo apt-get install -y bats zsh
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update -o Acquire::Retries=3 \
+              && sudo apt-get install -y bats zsh && exit 0
+            echo "apt attempt $attempt failed; retrying" >&2
+            sleep 5
+          done
+          exit 1
 
       # Cheap breakage check across the whole tree, in each language's own parser.
       - name: Syntax sweep
