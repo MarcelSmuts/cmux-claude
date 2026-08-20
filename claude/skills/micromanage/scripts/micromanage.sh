@@ -75,7 +75,7 @@ command -v "$CMUX" >/dev/null 2>&1 || CMUX="$(command -v cmux 2>/dev/null)"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 pidsf="$tmp/pids"        # pid \t session-id-or-"-"
-cwdf="$tmp/cwds"         # one line per unresolved process, its cwd
+cwdf="$tmp/cwds"         # pid \t cwd, one line per unresolved process
 tabf="$tmp/tabs"         # pid \t tab title
 usedf="$tmp/used"        # transcripts already claimed
 rowsf="$tmp/rows"
@@ -247,7 +247,7 @@ while IFS=$'\t' read -r pid sid; do
     # unresolved (hand-launched, or the session was resumed under a different id) —
     # remember its cwd so the fallback pass can account for it.
     lsof -a -d cwd -p "$pid" 2>/dev/null \
-      | awk 'NR>1{p=$9; for(i=10;i<=NF;i++)p=p" "$i; print p}' >> "$cwdf"
+      | awk -v pid="$pid" 'NR>1{p=$9; for(i=10;i<=NF;i++)p=p" "$i; print pid "\t" p}' >> "$cwdf"
     continue
   fi
   printf '%s\n' "$F" >> "$usedf"
@@ -274,10 +274,14 @@ if [ -s "$cwdf" ]; then
     # worktree — keeps its original cwd on early lines; the tail reflects where it
     # runs now, which is what lsof reports for the live process, so it buckets right.
     cwd=$(transcript_cwd "$F"); [ -n "$cwd" ] || continue
-    want=$(grep -cxF "$cwd" "$cwdf"); [ "$want" -gt 0 ] || continue
-    [ "$(grep -cxF "$cwd" "$takenf")" -lt "$want" ] || continue
+    # Nth unresolved process in this cwd, in pid order — with two of them in one
+    # directory they pair with the two newest transcripts there. Nothing left to pair
+    # with means this cwd is already accounted for.
+    nth=$(( $(grep -cxF "$cwd" "$takenf") + 1 ))
+    pid=$(awk -F'\t' -v c="$cwd" -v n="$nth" '$2==c && ++i==n {print $1; exit}' "$cwdf")
+    [ -n "$pid" ] || continue
     printf '%s\n' "$cwd" >> "$takenf"
-    classify "$F" "$mt" "$cwd" "" ""
+    classify "$F" "$mt" "$cwd" "$(tab_of "$pid")" "$pid"
     [ "$(grep -c . "$takenf")" -lt "$need" ] || break
   done < "$candf"
 fi
